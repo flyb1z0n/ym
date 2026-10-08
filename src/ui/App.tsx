@@ -6,10 +6,12 @@ import {
   removeSession,
   renameSession,
   resumeSession,
+  setHighlightColor,
   startSession,
   stopSession,
   toggleArchive,
 } from "../core/actions.ts";
+import type { HighlightColor } from "../core/types.ts";
 import { defaultModelName } from "../core/cursor.ts";
 import {
   filterRows,
@@ -29,7 +31,7 @@ import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { tildify } from "./format.ts";
-import { ConfirmDialog, RenameDialog } from "./Dialog.tsx";
+import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
 import { SessionList } from "./SessionList.tsx";
@@ -41,13 +43,15 @@ type ConfirmAction = "stop" | "archive" | "unarchive" | "delete";
 type Mode =
   | { kind: "main" }
   | { kind: "rename"; id: string; text: string }
+  | { kind: "highlight"; id: string; color: HighlightColor | undefined }
   | { kind: "confirm"; id: string; action: ConfirmAction }
   | { kind: "import"; chats: CursorChat[] }
   | { kind: "settings" };
 
 type Flash = { text: string; error?: boolean } | undefined;
 
-const KEYS = "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
+const KEYS =
+  "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
@@ -202,6 +206,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       if (!current) return;
       const { session } = current;
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
+      if (input === "l") return setMode({ kind: "highlight", id: session.id, color: session.highlightColor });
       if (input === "x") {
         if (!isAlive(currentPane)) return say("Session isn't running.");
         return setMode({ kind: "confirm", id: session.id, action: "stop" });
@@ -263,9 +268,9 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const fixedLines =
     HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
   const listHeight = Math.max(3, termRows - fixedLines);
-  const modalOpen = mode.kind === "rename" || mode.kind === "confirm";
+  const modalOpen = mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight";
   const modalTarget =
-    mode.kind === "rename" || mode.kind === "confirm"
+    mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight"
       ? rows.find((row) => row.session.id === mode.id)?.session
       : undefined;
 
@@ -393,6 +398,24 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           width={columns}
           height={termRows}
           onConfirm={runConfirmedAction}
+          onCancel={() => setMode({ kind: "main" })}
+        />
+      ) : null}
+      {mode.kind === "highlight" ? (
+        <HighlightDialog
+          value={mode.color}
+          width={columns}
+          height={termRows}
+          onSave={(color) => {
+            if (!modalTarget) {
+              setMode({ kind: "main" });
+              return say("That session no longer exists.", true);
+            }
+            if (attempt(() => setHighlightColor(modalTarget, color))) {
+              say(color ? `Updated highlight for ${modalTarget.name}.` : `Cleared highlight for ${modalTarget.name}.`);
+              setMode({ kind: "main" });
+            }
+          }}
           onCancel={() => setMode({ kind: "main" })}
         />
       ) : null}

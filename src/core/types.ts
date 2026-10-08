@@ -6,6 +6,14 @@ export type Status =
   | "exited"
   | "imported";
 
+export type HighlightColor =
+  | "blue"
+  | "cyan"
+  | "green"
+  | "magenta"
+  | "red"
+  | "yellow";
+
 export interface Session {
   id: string;
   name: string;
@@ -18,6 +26,8 @@ export interface Session {
   source: "ym" | "import";
   createdAt: number;
   archivedAt?: number;
+  /** Optional dashboard row highlight color. */
+  highlightColor?: HighlightColor;
   /** Cursor-managed worktree name. Absent for sessions launched in the source workspace. */
   worktree?: string;
 }

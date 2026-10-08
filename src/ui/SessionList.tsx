@@ -62,8 +62,15 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
         }
         const { row } = item;
         const style = STATUS_STYLE[row.status];
+        const selectedRow = start + i === selected;
         return (
-          <Text key={row.session.id} dimColor={dimmed} wrap="truncate" inverse={start + i === selected}>
+          <Text
+            key={row.session.id}
+            dimColor={dimmed}
+            wrap="truncate"
+            inverse={selectedRow}
+            backgroundColor={selectedRow ? undefined : row.session.highlightColor}
+          >
             {" ".repeat(item.nested ? indent : 0)}
             <Text color={style.color}>
               {fit(mode === "status" ? style.icon : `${style.icon} ${style.label}`, statusWidth)}

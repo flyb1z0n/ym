@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import type { HighlightColor } from "../core/types.ts";
 import { LineInput } from "./LineInput.tsx";
 
 type Tone = "warning" | "danger";
@@ -35,6 +36,24 @@ interface RenameProps {
   onSave: () => void;
   onCancel: () => void;
 }
+
+interface HighlightDialogProps {
+  value: HighlightColor | undefined;
+  width: number;
+  height: number;
+  onSave: (value: HighlightColor | undefined) => void;
+  onCancel: () => void;
+}
+
+const HIGHLIGHT_OPTIONS: Array<{ id: HighlightColor | undefined; label: string; color?: HighlightColor }> = [
+  { id: undefined, label: "None" },
+  { id: "yellow", label: "Yellow", color: "yellow" },
+  { id: "green", label: "Green", color: "green" },
+  { id: "cyan", label: "Cyan", color: "cyan" },
+  { id: "blue", label: "Blue", color: "blue" },
+  { id: "magenta", label: "Magenta", color: "magenta" },
+  { id: "red", label: "Red", color: "red" },
+];
 
 export function dialogBounds(termWidth: number, termHeight: number, requestedHeight: number) {
   const width = Math.min(64, Math.max(1, termWidth - 2));
@@ -124,6 +143,28 @@ export function RenameDialog({ value, width, height, onChange, onSave, onCancel 
         <Text color="yellow">› </Text>
         <LineInput value={value} width={Math.max(1, bounds.width - 6)} onChange={onChange} onSubmit={onSave} />
       </Box>
+    </DialogFrame>
+  );
+}
+
+export function HighlightDialog({ value, width, height, onSave, onCancel }: HighlightDialogProps) {
+  const [selected, setSelected] = useState(Math.max(0, HIGHLIGHT_OPTIONS.findIndex((o) => o.id === value)));
+
+  useInput((input, key) => {
+    if (key.escape) return onCancel();
+    if (key.upArrow) return setSelected((i) => Math.max(0, i - 1));
+    if (key.downArrow) return setSelected((i) => Math.min(HIGHLIGHT_OPTIONS.length - 1, i + 1));
+    if (key.return || input === " ") return onSave(HIGHLIGHT_OPTIONS[selected]?.id);
+  });
+
+  return (
+    <DialogFrame title="Session highlight" width={width} height={height} rows={HIGHLIGHT_OPTIONS.length + 1}>
+      {HIGHLIGHT_OPTIONS.map((option, i) => (
+        <Text key={option.label} inverse={i === selected} color={option.color} wrap="truncate">
+          {` ${option.label} `}
+        </Text>
+      ))}
+      <Text dimColor>↑↓ select · Enter saves · Esc cancels</Text>
     </DialogFrame>
   );
 }
