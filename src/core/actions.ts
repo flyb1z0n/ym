@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
-import { suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
+import { isGitRepo, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
@@ -60,7 +60,8 @@ export async function startSession(
     createdAt: Date.now(),
   };
   if (addDirs.length) draft.addDirs = addDirs;
-  if (settings.useWorktrees) draft.worktree = id;
+  const useWorktree = settings.useWorktrees && isGitRepo(cwd);
+  if (useWorktree) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
 
@@ -69,7 +70,7 @@ export async function startSession(
   try {
     [chatId, suggested] = await Promise.all([
       createChat(cwd),
-      settings.useWorktrees && settings.nameWorktrees && prompt ? suggestWorktreeName(prompt) : undefined,
+      useWorktree && settings.nameWorktrees && prompt ? suggestWorktreeName(prompt) : undefined,
     ]);
   } catch (e) {
     deleteSession(id);

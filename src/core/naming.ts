@@ -44,6 +44,11 @@ export async function suggestWorktreeName(prompt: string): Promise<string | unde
 
 const git = (cwd: string, args: string[]) => Bun.spawnSync(["git", "-C", cwd, ...args], { stdout: "pipe", stderr: "ignore" });
 
+/** `agent --worktree` needs a git repo, so other folders get a regular session. */
+export function isGitRepo(cwd: string): boolean {
+  return git(cwd, ["rev-parse", "--is-inside-work-tree"]).exitCode === 0;
+}
+
 /**
  * `agent --worktree <name>` reuses an existing worktree of that name, so pick one that is
  * neither a Cursor worktree folder for this repo nor an existing branch.

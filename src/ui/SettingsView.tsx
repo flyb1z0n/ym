@@ -22,7 +22,9 @@ const ROWS: Row[] = [
     key: "useWorktrees",
     label: "Use worktrees for new sessions",
     describe: (s) =>
-      s.useWorktrees ? "New sessions start in isolated Cursor worktrees." : "New sessions start in their selected folders.",
+      s.useWorktrees
+        ? "New sessions in git repos start in isolated Cursor worktrees; other folders open directly."
+        : "New sessions start in their selected folders.",
   },
   {
     key: "nameWorktrees",
