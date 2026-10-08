@@ -23,6 +23,7 @@ import {
 } from "../core/filter.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
+import { isGitRepo } from "../core/naming.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
@@ -151,7 +152,8 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     if (errors.length) return say(errors.join(", "), true);
     const input = { prompt: parsed.prompt, folders };
     setText("");
-    const naming = settings.useWorktrees && settings.nameWorktrees && !!input.prompt.trim();
+    const naming =
+      settings.useWorktrees && settings.nameWorktrees && !!input.prompt.trim() && isGitRepo(folders[0]!);
     say(`${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}…`);
     startSession(input, (s) => {
       setLastCwd(s.cwd);

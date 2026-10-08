@@ -6,6 +6,8 @@ import { join, resolve } from "node:path";
 const dir = realpathSync(mkdtempSync(join(tmpdir(), "ym-it-")));
 const extra = join(dir, "extra");
 mkdirSync(extra);
+Bun.spawnSync(["git", "init", "-q", dir]);
+const plain = realpathSync(mkdtempSync(join(tmpdir(), "ym-it-plain-")));
 process.env.YM_HOME = join(dir, "home");
 process.env.YM_TMUX_SOCKET = `ym-test-${process.pid}`;
 process.env.YM_AGENT_BIN = resolve(import.meta.dir, "stub-agent.sh");
@@ -50,6 +52,7 @@ beforeAll(() => {
 afterAll(() => {
   tmux.tmux(["kill-server"]);
   rmSync(dir, { recursive: true, force: true });
+  rmSync(plain, { recursive: true, force: true });
 });
 
 describe("tmux integration with a stub agent", () => {
@@ -163,6 +166,15 @@ describe("tmux integration with a stub agent", () => {
     } finally {
       saveSettings({ useWorktrees: true, nameWorktrees: true });
     }
+  }, 30000);
+
+  test("a folder outside git gets a regular session even with worktrees on", async () => {
+    const s = await actions.startSession({ prompt: "not a repo", folders: [plain] });
+    expect(s.worktree).toBeUndefined();
+    await waitFor(s.id, "your_turn");
+    const p = pane(s.id)!;
+    expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
+    actions.stopSession(p);
   }, 30000);
 
   test("with naming disabled, or no prompt, the worktree is named after the session id", async () => {

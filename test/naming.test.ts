@@ -2,7 +2,7 @@ import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { slugify, suggestWorktreeName, uniqueWorktreeName } from "../src/core/naming.ts";
+import { isGitRepo, slugify, suggestWorktreeName, uniqueWorktreeName } from "../src/core/naming.ts";
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), "ym-naming-")));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -49,6 +49,14 @@ describe("uniqueWorktreeName", () => {
   mkdirSync(repo);
   Bun.spawnSync(["git", "init", "-q", "-b", "main", repo]);
   Bun.spawnSync(["git", "-C", repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"]);
+
+  test("isGitRepo tells repos and their subfolders from plain folders", () => {
+    mkdirSync(join(repo, "sub"));
+    expect(isGitRepo(repo)).toBe(true);
+    expect(isGitRepo(join(repo, "sub"))).toBe(true);
+    expect(isGitRepo(dir)).toBe(false);
+    expect(isGitRepo(join(dir, "missing"))).toBe(false);
+  });
 
   test("returns the name unchanged outside a git repo", () => {
     expect(uniqueWorktreeName("fix-thing", dir)).toBe("fix-thing");
