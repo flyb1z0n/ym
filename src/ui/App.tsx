@@ -24,6 +24,7 @@ import {
   type TabId,
 } from "../core/filter.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
+import { attachPastedImages, referencedImages, stripImageMarkers } from "../core/images.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
 import { isGitRepo } from "../core/naming.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
@@ -69,6 +70,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     hooksInstalled ? undefined : { text: "Status tracking is off: run `ym install`, then restart agents.", error: true },
   );
   const [text, setText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [suggestion, setSuggestion] = useState(0);
   const [dismissed, setDismissed] = useState<string>();
   const [lastCwd, setLastCwd] = useState(process.cwd());
@@ -168,11 +170,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   const launch = () => {
     if (errors.length) return say(errors.join(", "), true);
-    const input = { prompt: parsed.prompt, folders };
+    const input = { prompt: parsed.prompt, folders, images };
     setText("");
+    setImages([]);
     const naming =
-      settings.useWorktrees && settings.nameWorktrees && !!input.prompt.trim() && isGitRepo(folders[0]!);
-    say(`${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}…`);
+      settings.useWorktrees && settings.nameWorktrees && !!stripImageMarkers(input.prompt) && isGitRepo(folders[0]!);
+    const attached = referencedImages(input.prompt, images).length;
+    const withImages = attached ? ` with ${attached} image${attached === 1 ? "" : "s"}` : "";
+    say(
+      `${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}${withImages}…`,
+    );
     startSession(input, (s) => {
       setLastCwd(s.cwd);
       setTab("sessions");
@@ -208,7 +215,10 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       if (key.escape) return setDismissed(text);
       if (!key.ctrl) return;
       if (input === "c") {
-        if (text) return setText("");
+        if (text) {
+          setImages([]);
+          return setText("");
+        }
         if (process.env.TMUX) return detachClient();
         return exit();
       }
@@ -377,11 +387,17 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         <LineInput
           value={text}
           width={columns - 7}
-          placeholder="Ask Cursor… @folder to choose where (Enter on empty opens the selected session)"
+          placeholder="Ask Cursor… @folder to choose where, drop images to attach (Enter on empty opens the selected session)"
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);
+            if (!v) setImages([]);
             setSuggestion(0);
+          }}
+          transformPaste={(pasted) => {
+            const attached = attachPastedImages(pasted, images);
+            setImages(attached.images);
+            return attached.text;
           }}
           onSubmit={submit}
         />

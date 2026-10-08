@@ -35,6 +35,9 @@ export async function createChat(cwd: string): Promise<string> {
   return id;
 }
 
+/** The interactive CLI's prompt bar line, e.g. "→ Plan, search, build anything". */
+export const PROMPT_BAR = /^\s*→ /m;
+
 export interface LaunchOptions {
   chatId: string;
   addDirs?: string[];

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -175,6 +175,17 @@ describe("tmux integration with a stub agent", () => {
     const p = pane(s.id)!;
     expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
     actions.stopSession(p);
+  }, 30000);
+
+  test("a prompt with images is pasted into the prompt bar instead of passed as an argument", async () => {
+    const image = join(plain, "shot one.png");
+    writeFileSync(image, "x");
+    const s = await actions.startSession({ prompt: "look at [Image #1]", folders: [dir], images: [image] });
+    await waitFor(s.id, "your_turn");
+    const screen = tmux.capturePane(pane(s.id)!.paneId);
+    expect(screen).toContain(`got: look at ${plain}/shot\\ one.png`);
+    expect(screen).not.toContain("--trust look at");
+    actions.stopSession(pane(s.id));
   }, 30000);
 
   test("with naming disabled, or no prompt, the worktree is named after the session id", async () => {
