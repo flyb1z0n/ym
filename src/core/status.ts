@@ -32,7 +32,14 @@ export interface SessionState {
 
 export const initialState = (): SessionState => ({ base: "none", lastEventAt: 0 });
 
-export function applyEvent(state: SessionState, ev: HookEvent): SessionState {
+/** Cursor emits sessionEnd for subagent chats too; only the main chatId should end the ym session. */
+export function appliesToSession(ev: HookEvent, sessionChatId: string | undefined): boolean {
+  if (ev.event !== "sessionEnd" || !sessionChatId || !ev.chatId) return true;
+  return ev.chatId === sessionChatId;
+}
+
+export function applyEvent(state: SessionState, ev: HookEvent, sessionChatId?: string): SessionState {
+  if (!appliesToSession(ev, sessionChatId)) return state;
   const at = Math.max(state.lastEventAt, ev.ts);
   if (ev.event === "ymLaunch") return { base: ev.withPrompt ? "working" : "your_turn", lastEventAt: at };
   if (ev.event === "stop") {
@@ -47,8 +54,8 @@ export function applyEvent(state: SessionState, ev: HookEvent): SessionState {
   return { ...state, lastEventAt: at };
 }
 
-export function applyEvents(state: SessionState, events: HookEvent[]): SessionState {
-  return events.reduce(applyEvent, state);
+export function applyEvents(state: SessionState, events: HookEvent[], sessionChatId?: string): SessionState {
+  return events.reduce((s, ev) => applyEvent(s, ev, sessionChatId), state);
 }
 
 export function deriveStatus(

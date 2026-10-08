@@ -25,7 +25,7 @@ const pane = (id: string) => tmux.listAgentPanes().get(id);
 
 function statusOf(id: string) {
   const session = listSessions().find((s) => s.id === id)!;
-  const state = applyEvents(states.get(id) ?? initialState(), reader.read(id));
+  const state = applyEvents(states.get(id) ?? initialState(), reader.read(id), session.chatId || undefined);
   states.set(id, state);
   return deriveStatus(session, state, pane(id), Date.now());
 }

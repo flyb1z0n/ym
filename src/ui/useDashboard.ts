@@ -33,7 +33,11 @@ export function useDashboard(): DashboardData {
     const rows: Row[] = [];
     for (const session of sessions) {
       seen.add(session.id);
-      const state = applyEvents(states.current.get(session.id) ?? initialState(), reader.current.read(session.id));
+      const state = applyEvents(
+        states.current.get(session.id) ?? initialState(),
+        reader.current.read(session.id),
+        session.chatId || undefined,
+      );
       states.current.set(session.id, state);
       const status = deriveStatus(session, state, panes.get(session.id), now);
       rows.push({ session, status, lastActivity: Math.max(state.lastEventAt, session.createdAt) });
