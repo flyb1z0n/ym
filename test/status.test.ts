@@ -15,8 +15,8 @@ const turn = (t: number, stopStatus = "completed"): HookEvent[] => [
   { ts: t + 3, event: "stop", stopStatus },
 ];
 
-const statusAfter = (events: HookEvent[], window = alive, now = 10) =>
-  deriveStatus(ym, applyEvents(initialState(), events), window, now);
+const statusAfter = (events: HookEvent[], window = alive, now = 10, chatId = ym.chatId) =>
+  deriveStatus(ym, applyEvents(initialState(), events, chatId), window, now);
 
 describe("status", () => {
   test("launch with prompt is working, without prompt is ready", () => {
@@ -46,6 +46,19 @@ describe("status", () => {
     ];
     expect(statusAfter(interrupted, alive, 2000)).toBe("your_turn");
     expect(statusAfter([...interrupted, ...turn(5000, "error")], alive, 6000)).toBe("error");
+  });
+
+  test("subagent sessionEnd does not exit the ym session", () => {
+    const main = "5be6bdea-729c-4e5a-90be-090e7d04f05c";
+    const events: HookEvent[] = [
+      ...turn(1),
+      { ts: 8, event: "sessionEnd", chatId: "26369d99-4759-45e1-b761-0eac5a8e1a97" },
+      { ts: 9, event: "preToolUse", chatId: main, tool: "Shell" },
+    ];
+    expect(statusAfter(events, alive, 10, main)).toBe("working");
+    expect(statusAfter([...turn(1), { ts: 9, event: "sessionEnd", chatId: main }], alive, 10, main)).toBe(
+      "exited",
+    );
   });
 
   test("sessionEnd or a dead/missing window is exited", () => {
