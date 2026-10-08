@@ -1,6 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
+import { suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
@@ -46,6 +47,7 @@ export async function startSession(
 ): Promise<Session> {
   const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
   if (!cwd) throw new Error("No folder to start in.");
+  const settings = loadSettings();
   const id = newSessionId();
   const prompt = input.prompt.trim();
   const draft: Session = {
@@ -57,13 +59,17 @@ export async function startSession(
     createdAt: Date.now(),
   };
   if (addDirs.length) draft.addDirs = addDirs;
-  if (loadSettings().useWorktrees) draft.worktree = id;
+  if (settings.useWorktrees) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
 
   let chatId: string;
+  let suggested: string | undefined;
   try {
-    chatId = await createChat(cwd);
+    [chatId, suggested] = await Promise.all([
+      createChat(cwd),
+      settings.useWorktrees && settings.nameWorktrees && prompt ? suggestWorktreeName(prompt) : undefined,
+    ]);
   } catch (e) {
     deleteSession(id);
     throw e;
@@ -72,6 +78,7 @@ export async function startSession(
   const current = loadSession(id);
   if (!current) throw new Error(`${draft.name} was removed before Cursor started.`);
   const session: Session = { ...current, chatId };
+  if (suggested) session.worktree = uniqueWorktreeName(suggested, cwd);
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
   newAgentPane(agentLaunch(session, prompt));

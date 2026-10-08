@@ -66,10 +66,10 @@ describe("tmux integration with a stub agent", () => {
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
     expect(s.addDirs).toEqual([extra]);
-    expect(s.worktree).toBe(s.id);
+    expect(s.worktree).toBe("do-the-thing");
     await waitFor(s.id, "your_turn");
     const p = pane(s.id)!;
-    expect(tmux.capturePane(p.paneId)).toContain(`--worktree ${s.id} --add-dir ${extra} do the thing`);
+    expect(tmux.capturePane(p.paneId)).toContain(`--worktree do-the-thing --add-dir ${extra} do the thing`);
 
     tmux.show(p.paneId);
     expect(pane(s.id)?.shown).toBe(true);
@@ -86,7 +86,7 @@ describe("tmux integration with a stub agent", () => {
     actions.resumeSession(s, pane(s.id));
     await waitFor(s.id, "your_turn");
     expect(pane(s.id)).toEqual({ paneId: p.paneId, dead: false, shown: true });
-    expect(tmux.capturePane(p.paneId)).toContain(`--worktree ${s.id}`);
+    expect(tmux.capturePane(p.paneId)).toContain("--worktree do-the-thing");
 
     actions.stopSession(pane(s.id));
     await waitFor(s.id, "exited");
@@ -152,7 +152,7 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ useWorktrees: false });
+    saveSettings({ useWorktrees: false, nameWorktrees: true });
     try {
       const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
       expect(s.worktree).toBeUndefined();
@@ -161,7 +161,24 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
       actions.stopSession(p);
     } finally {
-      saveSettings({ useWorktrees: true });
+      saveSettings({ useWorktrees: true, nameWorktrees: true });
+    }
+  }, 30000);
+
+  test("with naming disabled, or no prompt, the worktree is named after the session id", async () => {
+    const empty = await actions.startSession({ prompt: "", folders: [dir] });
+    expect(empty.worktree).toBe(empty.id);
+    actions.stopSession(pane(empty.id));
+
+    saveSettings({ useWorktrees: true, nameWorktrees: false });
+    try {
+      const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
+      expect(s.worktree).toBe(s.id);
+      await waitFor(s.id, "your_turn");
+      expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
+      actions.stopSession(pane(s.id));
+    } finally {
+      saveSettings({ useWorktrees: true, nameWorktrees: true });
     }
   }, 30000);
 });

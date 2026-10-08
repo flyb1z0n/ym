@@ -18,15 +18,21 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees default to enabled", () => {
+  test("worktrees and worktree naming default to enabled", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
+    expect(DEFAULT_SETTINGS).toEqual({ useWorktrees: true, nameWorktrees: true });
   });
 
   test("settings round-trip through config.json", () => {
-    saveSettings({ useWorktrees: false });
+    saveSettings({ useWorktrees: false, nameWorktrees: false });
 
-    expect(loadSettings()).toEqual({ useWorktrees: false });
-    expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual({ useWorktrees: false });
+    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: false });
+    expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual({ useWorktrees: false, nameWorktrees: false });
+  });
+
+  test("a config from before worktree naming keeps its value and gets the naming default", () => {
+    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false }));
+    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: true });
   });
 
   test("malformed and incomplete config falls back to defaults", () => {
