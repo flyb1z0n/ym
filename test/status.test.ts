@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvents, deriveStatus, initialState, STALE_MS } from "../src/core/status.ts";
+import { applyEvents, deriveStatus, initialState, STALE_MS, START_TIMEOUT_MS } from "../src/core/status.ts";
 import type { HookEvent } from "../src/core/types.ts";
 
 const alive = { paneId: "%1", dead: false, shown: false };
 const dead = { paneId: "%1", dead: true, shown: false };
-const ym = { source: "ym" as const };
+const ym = { source: "ym" as const, chatId: "c", createdAt: 0 };
+const imported = { source: "import" as const, chatId: "c", createdAt: 0 };
 
 // Event order observed in the spike against Cursor CLI 2026.10.01.
 const turn = (t: number, stopStatus = "completed"): HookEvent[] => [
@@ -58,9 +59,15 @@ describe("status", () => {
   });
 
   test("imported chat without events is imported until resumed", () => {
-    expect(deriveStatus({ source: "import" }, initialState(), undefined, 0)).toBe("imported");
+    expect(deriveStatus(imported, initialState(), undefined, 0)).toBe("imported");
     const resumed = applyEvents(initialState(), [{ ts: 1, event: "ymLaunch", withPrompt: false }]);
-    expect(deriveStatus({ source: "import" }, resumed, alive, 2)).toBe("your_turn");
+    expect(deriveStatus(imported, resumed, alive, 2)).toBe("your_turn");
+  });
+
+  test("a session still creating its chat is working, then exited once it times out", () => {
+    const starting = { ...ym, chatId: "", createdAt: 100 };
+    expect(deriveStatus(starting, initialState(), undefined, 101)).toBe("working");
+    expect(deriveStatus(starting, initialState(), undefined, 100 + START_TIMEOUT_MS + 1)).toBe("exited");
   });
 
   test("unknown events keep the status but bump activity", () => {

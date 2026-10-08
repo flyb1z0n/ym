@@ -41,6 +41,14 @@ export function listSessions(): Session[] {
   return out;
 }
 
+export function loadSession(id: string): Session | undefined {
+  try {
+    return JSON.parse(readFileSync(sessionFile(id), "utf8")) as Session;
+  } catch {
+    return undefined;
+  }
+}
+
 export function saveSession(s: Session): void {
   ensureDirs();
   const path = sessionFile(s.id);

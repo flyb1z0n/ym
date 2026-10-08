@@ -152,13 +152,13 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     const input = { prompt: parsed.prompt, folders };
     setText("");
     say(`Starting Cursor in ${folders.map(tildify).join(" + ")}…`);
-    startSession(input)
-      .then((s) => {
-        setLastCwd(s.cwd);
-        setTab("sessions");
-        setSelectedId(s.id);
-        say(`Started ${s.name}. Press Enter to open it.`);
-      })
+    startSession(input, (s) => {
+      setLastCwd(s.cwd);
+      setTab("sessions");
+      setSelectedId(s.id);
+      refresh();
+    })
+      .then((s) => say(`Started ${s.name}. Press Enter to open it.`))
       .catch((e: Error) => say(e.message, true))
       .finally(refresh);
   };

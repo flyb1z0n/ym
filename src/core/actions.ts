@@ -3,7 +3,8 @@ import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
-import { appendEvent, deleteSession, newSessionId, saveSession } from "./store.ts";
+import { isStarting, START_TIMEOUT_MS } from "./status.ts";
+import { appendEvent, deleteSession, loadSession, newSessionId, saveSession } from "./store.ts";
 import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
 import type { PaneInfo, Session } from "./types.ts";
 
@@ -35,22 +36,42 @@ function agentLaunch(s: Session, prompt?: string): AgentLaunch {
   };
 }
 
-export async function startSession(input: NewSessionInput): Promise<Session> {
+/**
+ * Saves the session before `agent create-chat` returns so the dashboard lists it at once;
+ * `onCreated` receives it in that chat-less state.
+ */
+export async function startSession(
+  input: NewSessionInput,
+  onCreated?: (s: Session) => void,
+): Promise<Session> {
   const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
   if (!cwd) throw new Error("No folder to start in.");
-  const chatId = await createChat(cwd);
   const id = newSessionId();
   const prompt = input.prompt.trim();
-  const session: Session = {
+  const draft: Session = {
     id,
     name: input.name?.trim() || defaultName(prompt, id),
     cwd,
-    chatId,
+    chatId: "",
     source: "ym",
     createdAt: Date.now(),
   };
-  if (addDirs.length) session.addDirs = addDirs;
-  if (loadSettings().useWorktrees) session.worktree = id;
+  if (addDirs.length) draft.addDirs = addDirs;
+  if (loadSettings().useWorktrees) draft.worktree = id;
+  saveSession(draft);
+  onCreated?.(draft);
+
+  let chatId: string;
+  try {
+    chatId = await createChat(cwd);
+  } catch (e) {
+    deleteSession(id);
+    throw e;
+  }
+  // Re-read: the user may have renamed, archived, or removed it while the chat was being created.
+  const current = loadSession(id);
+  if (!current) throw new Error(`${draft.name} was removed before Cursor started.`);
+  const session: Session = { ...current, chatId };
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
   newAgentPane(agentLaunch(session, prompt));
@@ -59,6 +80,13 @@ export async function startSession(input: NewSessionInput): Promise<Session> {
 
 /** Restarts the agent in its existing pane, or in a new window if it has none. */
 export function resumeSession(s: Session, pane: PaneInfo | undefined): void {
+  if (isStarting(s)) {
+    throw new Error(
+      Date.now() - s.createdAt > START_TIMEOUT_MS
+        ? "This session never finished starting. Remove it and start a new one."
+        : "Cursor is still starting this session…",
+    );
+  }
   if (!existsSync(s.cwd)) throw new Error(`Folder no longer exists: ${s.cwd}`);
   appendEvent(s.id, { ts: Date.now(), event: "ymLaunch", withPrompt: false });
   if (pane) respawnAgentPane(pane.paneId, agentLaunch(s));
@@ -87,10 +115,16 @@ export function removeSession(s: Session, pane: PaneInfo | undefined): void {
   deleteSession(s.id);
 }
 
-export const renameSession = (s: Session, name: string) => saveSession({ ...s, name: name.trim() || s.name });
+/** The on-disk copy, which may have gained its chat id since the dashboard last read it. */
+const latest = (s: Session) => loadSession(s.id) ?? s;
+
+export function renameSession(s: Session, name: string): void {
+  const cur = latest(s);
+  saveSession({ ...cur, name: name.trim() || cur.name });
+}
 
 export function toggleArchive(s: Session): Session {
-  const next: Session = { ...s };
+  const next: Session = { ...latest(s) };
   if (next.archivedAt === undefined) next.archivedAt = Date.now();
   else delete next.archivedAt;
   saveSession(next);
