@@ -57,6 +57,11 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.listAgentPanes().size).toBe(0);
   });
 
+  test("inactive panes are dimmed", () => {
+    expect(tmux.tmux(["show-option", "-gv", "window-style"]).stdout.trim()).toBe("fg=colour245");
+    expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("fg=default");
+  });
+
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
     expect(s.addDirs).toEqual([extra]);
