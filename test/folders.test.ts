@@ -28,6 +28,22 @@ describe("folders", () => {
     expect(buildFolderIndex(["/b", "/a"], ["/a", "/c"])).toEqual(["/b", "/a", "/c"]);
   });
 
+  test("index excludes cursor worktree folders from suggestions", () => {
+    const previousCursorHome = process.env.YM_CURSOR_HOME;
+    process.env.YM_CURSOR_HOME = "/cursor-home";
+    try {
+      expect(
+        buildFolderIndex(
+          ["/repo", "/cursor-home/worktrees/repo/branch"],
+          ["/cursor-home/worktrees/repo/another-branch", "/other"],
+        ),
+      ).toEqual(["/repo", "/other"]);
+    } finally {
+      if (previousCursorHome === undefined) delete process.env.YM_CURSOR_HOME;
+      else process.env.YM_CURSOR_HOME = previousCursorHome;
+    }
+  });
+
   test("trailingTag finds the @tag being typed at the end", () => {
     expect(trailingTag("fix @com")).toEqual({ start: 4, query: "com" });
     expect(trailingTag("@")).toEqual({ start: 0, query: "" });
