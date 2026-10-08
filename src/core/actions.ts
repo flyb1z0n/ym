@@ -1,17 +1,16 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { createChat, launchCommand, worktreePath } from "./cursor.ts";
+import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
 import { expandHome } from "./paths.ts";
 import { appendEvent, deleteSession, newSessionId, saveSession } from "./store.ts";
-import { killWindow, newWindow } from "./tmux.ts";
-import type { Session } from "./types.ts";
+import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
+import type { PaneInfo, Session } from "./types.ts";
 
 export interface NewSessionInput {
   prompt: string;
-  cwd: string;
+  /** First folder is the workspace; the rest become --add-dir roots. */
+  folders: string[];
   name?: string;
-  model?: string;
-  worktree?: string;
 }
 
 export function defaultName(prompt: string, id: string): string {
@@ -26,49 +25,42 @@ export function resolveDir(input: string): string {
   return realpathSync(path);
 }
 
-const sessionEnv = (s: Session) => ({ YM_SESSION_ID: s.id });
+function agentLaunch(s: Session, prompt?: string): AgentLaunch {
+  return {
+    id: s.id,
+    cwd: s.cwd,
+    env: { YM_SESSION_ID: s.id },
+    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt }),
+  };
+}
 
 export async function startSession(input: NewSessionInput): Promise<Session> {
-  const cwd = resolveDir(input.cwd);
-  const worktree = input.worktree?.trim() || undefined;
-  if (worktree && !/^[\w.-]+$/.test(worktree)) throw new Error(`Invalid worktree name: ${worktree}`);
-  const runCwd = worktree ? worktreePath(cwd, worktree) : cwd;
-  if (!runCwd) throw new Error(`Worktrees need a git repository: ${cwd}`);
-
+  const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
+  if (!cwd) throw new Error("No folder to start in.");
   const chatId = await createChat(cwd);
   const id = newSessionId();
   const prompt = input.prompt.trim();
   const session: Session = {
     id,
     name: input.name?.trim() || defaultName(prompt, id),
-    cwd: runCwd,
+    cwd,
     chatId,
-    model: input.model?.trim() || undefined,
-    worktree,
     source: "ym",
     createdAt: Date.now(),
   };
+  if (addDirs.length) session.addDirs = addDirs;
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
-  newWindow({
-    name: id,
-    cwd,
-    env: sessionEnv(session),
-    command: launchCommand({ chatId, model: session.model, worktree, prompt }),
-  });
+  newAgentPane(agentLaunch(session, prompt));
   return session;
 }
 
-export function resumeSession(s: Session): void {
+/** Restarts the agent in its existing pane, or in a new window if it has none. */
+export function resumeSession(s: Session, pane: PaneInfo | undefined): void {
   if (!existsSync(s.cwd)) throw new Error(`Folder no longer exists: ${s.cwd}`);
-  killWindow(s.id);
   appendEvent(s.id, { ts: Date.now(), event: "ymLaunch", withPrompt: false });
-  newWindow({
-    name: s.id,
-    cwd: s.cwd,
-    env: sessionEnv(s),
-    command: launchCommand({ chatId: s.chatId, model: s.model }),
-  });
+  if (pane) respawnAgentPane(pane.paneId, agentLaunch(s));
+  else newAgentPane(agentLaunch(s));
 }
 
 export function importChat(chat: CursorChat): Session {
@@ -84,10 +76,12 @@ export function importChat(chat: CursorChat): Session {
   return session;
 }
 
-export const stopSession = (s: Session) => killWindow(s.id);
+export function stopSession(pane: PaneInfo | undefined): void {
+  if (pane) killAgentPane(pane.paneId);
+}
 
-export function removeSession(s: Session): void {
-  killWindow(s.id);
+export function removeSession(s: Session, pane: PaneInfo | undefined): void {
+  stopSession(pane);
   deleteSession(s.id);
 }
 

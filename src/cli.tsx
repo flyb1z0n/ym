@@ -14,7 +14,9 @@ Usage:
   ym hook <event> internal: called by Cursor hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
-Inside the dashboard, ${tmux.DASH_KEY()} returns to it from any agent window.`;
+In the dashboard, type a prompt (tag folders with @) and press Enter to start Cursor.
+${tmux.DASH_KEY()} returns focus to the list from an agent pane or window.
+Folders offered for @tags come from past sessions, Cursor chats, and YM_ROOTS (default ~/dev).`;
 
 function fail(message: string): never {
   console.error(`ym: ${message}`);
@@ -40,7 +42,7 @@ function open(): void {
     tmux.configureServer();
     tmux.ensureDashWindow(dash, process.cwd());
   }
-  tmux.selectWindow(tmux.DASH_WINDOW);
+  tmux.selectDashboard();
   if (insideYmServer()) return;
   if (process.env.TMUX) console.error("ym: opening inside your tmux session as a nested client.");
   process.exit(tmux.attach());

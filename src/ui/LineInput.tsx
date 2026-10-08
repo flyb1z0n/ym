@@ -1,5 +1,5 @@
 import { Text, useInput } from "ink";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   value: string;
@@ -7,14 +7,20 @@ interface Props {
   onSubmit?: (value: string) => void;
   placeholder?: string;
   focus?: boolean;
+  /** Visible columns; longer values scroll to keep the cursor in view. */
+  width?: number;
 }
 
 /** Single-line input with readline-style editing keys. */
-export function LineInput({ value, onChange, onSubmit, placeholder = "", focus = true }: Props) {
+export function LineInput({ value, onChange, onSubmit, placeholder = "", focus = true, width }: Props) {
   const [cursor, setCursor] = useState(value.length);
+  const previous = useRef(value);
 
+  // External edits (e.g. autocomplete) keep a cursor that was at the end at the end.
   useEffect(() => {
-    setCursor((c) => Math.min(c, value.length));
+    const wasAtEnd = cursor === previous.current.length;
+    previous.current = value;
+    setCursor((c) => (wasAtEnd ? value.length : Math.min(c, value.length)));
   }, [value]);
 
   useInput(
@@ -48,20 +54,24 @@ export function LineInput({ value, onChange, onSubmit, placeholder = "", focus =
 
   if (!value) {
     return focus ? (
-      <Text>
-        <Text inverse>{placeholder[0] ?? " "}</Text>
-        <Text dimColor>{placeholder.slice(1)}</Text>
+      <Text wrap="truncate">
+        <Text inverse> </Text>
+        <Text dimColor>{placeholder}</Text>
       </Text>
     ) : (
-      <Text dimColor>{placeholder}</Text>
+      <Text dimColor wrap="truncate">
+        {placeholder}
+      </Text>
     );
   }
-  if (!focus) return <Text>{value}</Text>;
+  const start = width && value.length >= width ? Math.max(0, Math.min(cursor - width + 1, value.length - width + 1)) : 0;
+  const end = width ? start + width : undefined;
+  if (!focus) return <Text wrap="truncate">{value.slice(start, end)}</Text>;
   return (
-    <Text>
-      {value.slice(0, cursor)}
+    <Text wrap="truncate">
+      {value.slice(start, cursor)}
       <Text inverse>{value[cursor] ?? " "}</Text>
-      {value.slice(cursor + 1)}
+      {value.slice(cursor + 1, end)}
     </Text>
   );
 }

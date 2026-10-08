@@ -1,4 +1,4 @@
-import type { HookEvent, Session, Status, WindowInfo } from "./types.ts";
+import type { HookEvent, Session, Status, PaneInfo } from "./types.ts";
 
 export const STALE_MS = 10 * 60 * 1000;
 
@@ -45,16 +45,16 @@ export function applyEvents(state: SessionState, events: HookEvent[]): SessionSt
 export function deriveStatus(
   session: Pick<Session, "source">,
   state: SessionState,
-  window: WindowInfo | undefined,
+  pane: PaneInfo | undefined,
   now: number,
 ): Status {
   if (state.base === "none") {
     if (session.source === "import") return "imported";
-    return isAlive(window) ? "working" : "exited";
+    return isAlive(pane) ? "working" : "exited";
   }
-  if (!window || window.dead || state.base === "exited") return "exited";
+  if (!pane || pane.dead || state.base === "exited") return "exited";
   if (state.base === "working" && now - state.lastEventAt > STALE_MS) return "stale";
   return state.base;
 }
 
-export const isAlive = (w: WindowInfo | undefined) => !!w && !w.dead;
+export const isAlive = (w: PaneInfo | undefined) => !!w && !w.dead;

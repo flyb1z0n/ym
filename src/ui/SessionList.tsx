@@ -17,7 +17,9 @@ export function SessionList({ rows, selected, width, height, tab }: Props) {
     return (
       <Box borderStyle="round" width={width} height={height} paddingX={1}>
         <Text dimColor>
-          {tab === "all" ? "No sessions. Press n to start one or i to import a Cursor chat." : "Nothing here."}
+          {tab === "all"
+            ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a Cursor chat."
+            : "Nothing here."}
         </Text>
       </Box>
     );
@@ -39,7 +41,12 @@ export function SessionList({ rows, selected, width, height, tab }: Props) {
             <Text color={style.color}>{fit(`${style.icon} ${style.label}`, statusWidth)}</Text>
             {"  "}
             <Text dimColor={archived}>{fit(row.session.name, nameWidth)}</Text>{" "}
-            <Text dimColor>{fit(folder(row.session.cwd), folderWidth)}</Text>{" "}
+            <Text dimColor>
+              {fit(
+                folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : ""),
+                folderWidth,
+              )}
+            </Text>{" "}
             <Text dimColor>{age(row.lastActivity).padStart(ageWidth)}</Text>
           </Text>
         );

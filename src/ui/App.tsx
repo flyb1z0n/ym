@@ -1,5 +1,5 @@
+import { existsSync } from "node:fs";
 import { Box, Text, useApp, useInput, useWindowSize } from "ink";
-import { LineInput } from "./LineInput.tsx";
 import { useEffect, useMemo, useState } from "react";
 import {
   importChat,
@@ -9,56 +9,77 @@ import {
   startSession,
   stopSession,
   toggleArchive,
-  type NewSessionInput,
 } from "../core/actions.ts";
 import { filterRows, TABS, tabCounts, type TabId } from "../core/filter.ts";
+import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
 import { isAlive } from "../core/status.ts";
-import { capturePane, DASH_KEY, detachClient, selectWindow, sendLine } from "../core/tmux.ts";
-import { FilterTabs } from "./FilterTabs.tsx";
+import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
+import { FilterTabs, tabLabel } from "./FilterTabs.tsx";
+import { tildify } from "./format.ts";
 import { ImportPicker } from "./ImportPicker.tsx";
-import { NewSessionForm } from "./NewSessionForm.tsx";
-import { Preview } from "./Preview.tsx";
+import { LineInput } from "./LineInput.tsx";
 import { SessionList } from "./SessionList.tsx";
 import { useDashboard } from "./useDashboard.ts";
 
 type Mode =
-  | { kind: "list" }
-  | { kind: "new" }
-  | { kind: "reply"; id: string; text: string }
+  | { kind: "main" }
   | { kind: "rename"; id: string; text: string }
   | { kind: "confirmDelete"; id: string }
   | { kind: "import"; chats: CursorChat[] };
 
 type Flash = { text: string; error?: boolean } | undefined;
 
-const HINTS =
-  "⏎ jump  n new  r reply  e rename  x stop  a archive  d delete  i import  1-7/Tab filter  q detach";
+const KEYS = "⏎ open · ↑↓ select · Tab filter · @ folder · ^R rename · ^X stop · ^T archive · ^D delete · ^O import · ^G back here";
+const FOLDER_REFRESH_MS = 30_000;
+
+const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
 
 export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const { exit } = useApp();
   const { columns, rows: termRows } = useWindowSize();
-  const { rows, windows, refresh } = useDashboard();
+  const { rows, panes, refresh } = useDashboard();
   const [tab, setTab] = useState<TabId>("all");
   const [selectedId, setSelectedId] = useState<string>();
-  const [mode, setMode] = useState<Mode>({ kind: "list" });
+  const [mode, setMode] = useState<Mode>({ kind: "main" });
   const [flash, setFlash] = useState<Flash>(
     hooksInstalled ? undefined : { text: "Status tracking is off: run `ym install`, then restart agents.", error: true },
   );
-  const [preview, setPreview] = useState("");
+  const [text, setText] = useState("");
+  const [suggestion, setSuggestion] = useState(0);
+  const [dismissed, setDismissed] = useState<string>();
   const [lastCwd, setLastCwd] = useState(process.cwd());
+  const [externalFolders, setExternalFolders] = useState<string[]>([]);
 
   const visible = useMemo(() => filterRows(rows, tab), [rows, tab]);
   const counts = useMemo(() => tabCounts(rows), [rows]);
   const foundIndex = visible.findIndex((r) => r.session.id === selectedId);
   const index = foundIndex === -1 ? 0 : foundIndex;
   const current = visible[index];
+  const currentPane = current ? panes.get(current.session.id) : undefined;
 
   useEffect(() => {
-    setPreview(current && windows.has(current.session.id) ? capturePane(current.session.id) : "");
-  }, [current?.session.id, rows, windows]);
+    const load = () =>
+      setExternalFolders(buildFolderIndex(scanChats().map((c) => c.cwd), rootFolders()).filter((p) => existsSync(p)));
+    load();
+    const timer = setInterval(load, FOLDER_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
 
-  const say = (text: string, error = false) => setFlash({ text, error });
+  const folderIndex = useMemo(() => {
+    const recent = [...rows].sort((a, b) => b.lastActivity - a.lastActivity).flatMap((r) => [r.session.cwd, ...(r.session.addDirs ?? [])]);
+    return buildFolderIndex(recent, externalFolders);
+  }, [rows, externalFolders]);
+
+  const tag = trailingTag(text);
+  const suggestions = tag && dismissed !== text ? suggestFolders(tag.query, folderIndex) : [];
+  const suggestionIndex = Math.min(suggestion, Math.max(0, suggestions.length - 1));
+  const parsed = useMemo(() => parsePrompt(text, folderIndex), [text, folderIndex]);
+  const folders = parsed.folders.length ? parsed.folders : [lastCwd];
+  // The tag still being typed isn't an error while suggestions are offered for it.
+  const errors = suggestions.length && tag ? parsed.errors.filter((e) => e !== `Unknown folder @${tag.query}`) : parsed.errors;
+
+  const say = (message: string, error = false) => setFlash({ text: message, error });
   const attempt = (fn: () => void) => {
     try {
       fn();
@@ -68,68 +89,95 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     refresh();
   };
 
+  // Keep the selected session's live pane on the right side of the window.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        if (currentPane) show(currentPane.paneId);
+        else unshow();
+      } catch (e) {
+        say((e as Error).message, true);
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [currentPane?.paneId]);
+
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
-  const jump = () => {
+  const acceptSuggestion = () => {
+    const path = suggestions[suggestionIndex];
+    if (!tag || !path) return;
+    setText(`${text.slice(0, tag.start)}@${tildify(path)} `);
+    setSuggestion(0);
+  };
+
+  const openCurrent = () => {
     if (!current) return;
     const { session } = current;
     attempt(() => {
-      if (!isAlive(windows.get(session.id))) resumeSession(session);
-      selectWindow(session.id);
+      if (!isAlive(currentPane)) resumeSession(session, currentPane);
+      const pane = listAgentPanes().get(session.id);
+      if (pane) show(pane.paneId);
+      focusRight();
       setFlash(undefined);
     });
   };
 
-  const create = (input: NewSessionInput) => {
-    setMode({ kind: "list" });
-    say("Starting session…");
+  const launch = () => {
+    if (errors.length) return say(errors.join(", "), true);
+    const input = { prompt: parsed.prompt, folders };
+    setText("");
+    say(`Starting Cursor in ${folders.map(tildify).join(" + ")}…`);
     startSession(input)
       .then((s) => {
-        setLastCwd(input.cwd);
+        setLastCwd(s.cwd);
         setTab("all");
         setSelectedId(s.id);
-        say(`Started ${s.name}. Press Enter to jump in.`);
+        say(`Started ${s.name}. Press Enter to open it.`);
       })
       .catch((e: Error) => say(e.message, true))
       .finally(refresh);
   };
 
+  const submit = () => {
+    if (suggestions.length) return acceptSuggestion();
+    if (text.trim()) return launch();
+    openCurrent();
+  };
+
   useInput(
     (input, key) => {
-      if (key.upArrow || input === "k") return select(index - 1);
-      if (key.downArrow || input === "j") return select(index + 1);
+      if (key.upArrow) return suggestions.length ? setSuggestion(Math.max(0, suggestionIndex - 1)) : select(index - 1);
+      if (key.downArrow) {
+        return suggestions.length ? setSuggestion(Math.min(suggestions.length - 1, suggestionIndex + 1)) : select(index + 1);
+      }
       if (key.tab) {
+        if (suggestions.length && !key.shift) return acceptSuggestion();
         const i = TABS.findIndex((t) => t.id === tab);
         return setTab(TABS[(i + (key.shift ? TABS.length - 1 : 1)) % TABS.length]!.id);
       }
-      const n = Number(input);
-      if (n >= 1 && n <= TABS.length) return setTab(TABS[n - 1]!.id);
-      if (key.return) return jump();
-      if (input === "n") return setMode({ kind: "new" });
-      if (input === "i") {
-        const tracked = new Set(rows.map((r) => r.session.chatId));
-        return setMode({ kind: "import", chats: scanChats().filter((c) => !tracked.has(c.chatId)) });
-      }
-      if (input === "q" || (key.ctrl && input === "c")) {
+      if (key.escape) return setDismissed(text);
+      if (!key.ctrl) return;
+      if (input === "c") {
+        if (text) return setText("");
         if (process.env.TMUX) return detachClient();
         return exit();
       }
-      if (!current) return;
-      const { session, status } = current;
-      const alive = isAlive(windows.get(session.id));
-      if (input === "r") {
-        if (alive && status === "your_turn") return setMode({ kind: "reply", id: session.id, text: "" });
-        return say("Replies work when it's the session's turn. Press Enter to jump in instead.");
+      if (input === "o") {
+        const tracked = new Set(rows.map((r) => r.session.chatId));
+        return setMode({ kind: "import", chats: scanChats().filter((c) => !tracked.has(c.chatId)) });
       }
-      if (input === "e") return setMode({ kind: "rename", id: session.id, text: session.name });
+      if (!current) return;
+      const { session } = current;
+      if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "x") {
-        if (!alive) return say("Session isn't running.");
+        if (!isAlive(currentPane)) return say("Session isn't running.");
         return attempt(() => {
-          stopSession(session);
+          stopSession(currentPane);
           say(`Stopped ${session.name}. Press Enter to resume it.`);
         });
       }
-      if (input === "a") {
+      if (input === "t") {
         return attempt(() => {
           const next = toggleArchive(session);
           say(next.archivedAt ? `Archived ${session.name}.` : `Unarchived ${session.name}.`);
@@ -137,7 +185,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       }
       if (input === "d") return setMode({ kind: "confirmDelete", id: session.id });
     },
-    { isActive: mode.kind === "list" },
+    { isActive: mode.kind === "main" },
   );
 
   useInput(
@@ -146,113 +194,103 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       const target = rows.find((r) => r.session.id === mode.id)?.session;
       if (input === "y" && target) {
         attempt(() => {
-          removeSession(target);
+          removeSession(target, panes.get(target.id));
           say(`Deleted ${target.name}. The Cursor chat is untouched.`);
         });
       }
-      if (input === "y" || input === "n" || key.escape) setMode({ kind: "list" });
+      if (input === "y" || input === "n" || key.escape) setMode({ kind: "main" });
     },
     { isActive: mode.kind === "confirmDelete" },
   );
 
   useInput(
     (_input, key) => {
-      if (key.escape) setMode({ kind: "list" });
+      if (key.escape) setMode({ kind: "main" });
     },
-    { isActive: mode.kind === "reply" || mode.kind === "rename" },
+    { isActive: mode.kind === "rename" },
   );
-
-  const bodyHeight = Math.max(6, termRows - 3);
-  const listWidth = Math.max(40, Math.min(90, Math.floor(columns * 0.5)));
-  const sideWidth = Math.max(20, columns - listWidth);
 
   if (mode.kind === "import") {
     return (
-      <Box flexDirection="column" height={termRows}>
-        <FilterTabs active={tab} counts={counts} />
-        <ImportPicker
-          chats={mode.chats}
-          width={columns}
-          height={termRows - 1}
-          onClose={() => setMode({ kind: "list" })}
-          onImport={(chat) => {
-            const s = importChat(chat);
-            setMode({ ...mode, chats: mode.chats.filter((c) => c.chatId !== chat.chatId) });
-            setSelectedId(s.id);
-            say(`Imported ${s.name}.`);
-            refresh();
-          }}
-        />
-      </Box>
+      <ImportPicker
+        chats={mode.chats}
+        width={columns}
+        height={termRows}
+        onClose={() => setMode({ kind: "main" })}
+        onImport={(chat) => {
+          const s = importChat(chat);
+          setMode({ ...mode, chats: mode.chats.filter((c) => c.chatId !== chat.chatId) });
+          setSelectedId(s.id);
+          say(`Imported ${s.name}.`);
+          refresh();
+        }}
+      />
     );
   }
+
+  const tabsText = TABS.map((t) => tabLabel(t.label, counts[t.id])).join("");
+  const target = errors.length
+    ? errors.join(", ")
+    : suggestions.length
+      ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
+    : `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
+  const fixedLines =
+    linesFor(tabsText, columns) + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
+  const listHeight = Math.max(3, termRows - fixedLines);
 
   return (
     <Box flexDirection="column" height={termRows}>
       <FilterTabs active={tab} counts={counts} />
-      <Box height={bodyHeight}>
-        <SessionList rows={visible} selected={index} width={listWidth} height={bodyHeight} tab={tab} />
-        {mode.kind === "new" ? (
-          <NewSessionForm
-            defaultCwd={lastCwd}
-            width={sideWidth}
-            height={bodyHeight}
-            onSubmit={create}
-            onCancel={() => setMode({ kind: "list" })}
-          />
-        ) : (
-          <Preview row={current} content={preview} width={sideWidth} height={bodyHeight} />
-        )}
-      </Box>
-      <Footer
-        mode={mode}
-        flash={flash}
-        onChange={(text) => (mode.kind === "reply" || mode.kind === "rename") && setMode({ ...mode, text })}
-        onSubmit={() => {
-          const target = rows.find((r) => "id" in mode && r.session.id === mode.id)?.session;
-          if (target && mode.kind === "reply" && mode.text.trim()) {
-            attempt(() => {
-              sendLine(target.id, mode.text);
-              say(`Sent to ${target.name}.`);
-            });
-          }
-          if (target && mode.kind === "rename") attempt(() => renameSession(target, mode.text));
-          setMode({ kind: "list" });
-        }}
-      />
-    </Box>
-  );
-}
-
-function Footer({
-  mode,
-  flash,
-  onChange,
-  onSubmit,
-}: {
-  mode: Mode;
-  flash: Flash;
-  onChange: (text: string) => void;
-  onSubmit: () => void;
-}) {
-  let line = <Text dimColor wrap="truncate">{`${HINTS}   ${DASH_KEY()} returns here`}</Text>;
-  if (mode.kind === "reply" || mode.kind === "rename") {
-    line = (
-      <Box>
-        <Text color="green">{mode.kind === "reply" ? "reply › " : "rename › "}</Text>
-        <LineInput value={mode.text} onChange={onChange} onSubmit={onSubmit} />
-        <Text dimColor>{"   Enter sends · Esc cancels"}</Text>
-      </Box>
-    );
-  } else if (mode.kind === "confirmDelete") {
-    line = <Text color="yellow">Delete this session from ym? The Cursor chat is kept. (y/n)</Text>;
-  }
-  return (
-    <Box flexDirection="column">
+      <SessionList rows={visible} selected={index} width={columns} height={listHeight} tab={tab} />
+      {suggestions.map((path, i) => (
+        <Text key={path} inverse={i === suggestionIndex} color="cyan" wrap="truncate">
+          {`  @${tildify(path)}`}
+        </Text>
+      ))}
       <Text color={flash?.error ? "red" : "green"} wrap="truncate">
         {flash?.text ?? " "}
       </Text>
-      {line}
+      <Box borderStyle="round" borderColor={mode.kind === "main" ? "green" : "yellow"} paddingX={1} width={columns}>
+        {mode.kind === "main" ? (
+          <>
+            <Box marginRight={1}>
+              <Text color="green">›</Text>
+            </Box>
+            <LineInput
+              value={text}
+              width={columns - 7}
+              placeholder="Ask Cursor… @folder to choose where (Enter on empty opens the selected session)"
+              onChange={(v) => {
+                setText(v);
+                setSuggestion(0);
+              }}
+              onSubmit={submit}
+            />
+          </>
+        ) : mode.kind === "rename" ? (
+          <>
+            <Box marginRight={1}>
+              <Text color="yellow">rename ›</Text>
+            </Box>
+            <LineInput
+              value={mode.text}
+              width={columns - 14}
+              onChange={(v) => setMode({ ...mode, text: v })}
+              onSubmit={() => {
+                const s = rows.find((r) => r.session.id === mode.id)?.session;
+                if (s) attempt(() => renameSession(s, mode.text));
+                setMode({ kind: "main" });
+              }}
+            />
+          </>
+        ) : (
+          <Text color="yellow">Delete this session from ym? The Cursor chat is kept. (y/n)</Text>
+        )}
+      </Box>
+      <Text color={errors.length ? "red" : undefined} dimColor={!errors.length} wrap="truncate">
+        {mode.kind === "main" ? target : "Enter saves · Esc cancels"}
+      </Text>
+      <Text dimColor>{KEYS}</Text>
     </Box>
   );
 }

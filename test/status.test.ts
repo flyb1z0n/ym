@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { applyEvents, deriveStatus, initialState, STALE_MS } from "../src/core/status.ts";
 import type { HookEvent } from "../src/core/types.ts";
 
-const alive = { name: "s", dead: false };
-const dead = { name: "s", dead: true };
+const alive = { paneId: "%1", dead: false, shown: false };
+const dead = { paneId: "%1", dead: true, shown: false };
 const ym = { source: "ym" as const };
 
 // Event order observed in the spike against Cursor CLI 2026.10.01.

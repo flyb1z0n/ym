@@ -9,11 +9,11 @@ export type Status =
 export interface Session {
   id: string;
   name: string;
-  /** Directory the agent runs in (the worktree path when one is used). */
+  /** Workspace the agent runs in. */
   cwd: string;
+  /** Extra workspace roots, passed as --add-dir. */
+  addDirs?: string[];
   chatId: string;
-  model?: string;
-  worktree?: string;
   source: "ym" | "import";
   createdAt: number;
   archivedAt?: number;
@@ -29,7 +29,9 @@ export interface HookEvent {
   withPrompt?: boolean;
 }
 
-export interface WindowInfo {
-  name: string;
+export interface PaneInfo {
+  paneId: string;
   dead: boolean;
+  /** Currently displayed on the right side of the dashboard. */
+  shown: boolean;
 }

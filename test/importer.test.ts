@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { launchCommand, parseModels } from "../src/core/cursor.ts";
+import { launchCommand } from "../src/core/cursor.ts";
 import { scanChats } from "../src/core/importer.ts";
 
 let root: string;
@@ -42,15 +42,10 @@ describe("importer", () => {
 });
 
 describe("cursor", () => {
-  test("parses `agent models` output", () => {
-    const out = "Available models\n\nauto - Auto (default)\ngpt-5.2 - GPT-5.2\ncomposer-2.5 - Composer 2.5\n";
-    expect(parseModels(out).map((m) => m.id)).toEqual(["auto", "gpt-5.2", "composer-2.5"]);
-  });
-
   test("builds launch command lines", () => {
     expect(launchCommand({ chatId: "c" })).toEqual(["agent", "--resume", "c", "--trust"]);
-    expect(launchCommand({ chatId: "c", model: "m", worktree: "w", prompt: "-x" })).toEqual([
-      "agent", "--resume", "c", "--trust", "--model", "m", "--worktree", "w", " -x",
+    expect(launchCommand({ chatId: "c", addDirs: ["/a", "/b"], prompt: "-x" })).toEqual([
+      "agent", "--resume", "c", "--trust", "--add-dir", "/a", "--add-dir", "/b", " -x",
     ]);
   });
 });
