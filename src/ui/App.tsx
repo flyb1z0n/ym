@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { Box, Text, useApp, useInput, useWindowSize } from "ink";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   importChat,
   removeSession,
@@ -74,6 +74,8 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [lastCwd, setLastCwd] = useState(process.cwd());
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
   const [settings, setSettings] = useState(loadSettings);
+  const [switchingSession, setSwitchingSession] = useState(false);
+  const previousSelection = useRef<string | undefined>();
 
   const groups = useMemo(() => groupRows(filterRows(rows, tab), group), [rows, tab, group]);
   const visible = useMemo(() => flattenGroups(groups), [groups]);
@@ -132,6 +134,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     }, 120);
     return () => clearTimeout(timer);
   }, [currentPane?.paneId, current?.session.chatId, mode.kind]);
+
+  useEffect(() => {
+    const currentId = current?.session.id;
+    const previousId = previousSelection.current;
+    previousSelection.current = currentId;
+    if (!previousId || !currentId || previousId === currentId) return;
+    setSwitchingSession(true);
+    const timer = setTimeout(() => setSwitchingSession(false), 180);
+    return () => clearTimeout(timer);
+  }, [current?.session.id]);
 
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
@@ -271,6 +283,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
   const listHeight = Math.max(3, termRows - fixedLines);
   const modalOpen = mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight";
+  const inputDimmed = modalOpen || switchingSession;
   const modalTarget =
     mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight"
       ? rows.find((row) => row.session.id === mode.id)?.session
@@ -348,24 +361,24 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           {`  @${tildify(path)}`}
         </Text>
       ))}
-      <Text color={flash?.error ? "red" : "green"} dimColor={modalOpen} wrap="truncate">
+      <Text color={flash?.error ? "red" : "green"} dimColor={inputDimmed} wrap="truncate">
         {flash?.text ?? " "}
       </Text>
       <Box
         borderStyle="round"
         borderColor="green"
-        borderDimColor={modalOpen}
+        borderDimColor={inputDimmed}
         paddingX={1}
         width={columns}
       >
         <Box marginRight={1}>
-          <Text color="green" dimColor={modalOpen}>›</Text>
+          <Text color="green" dimColor={inputDimmed}>›</Text>
         </Box>
         <LineInput
           value={text}
           width={columns - 7}
           placeholder="Ask Cursor… @folder to choose where (Enter on empty opens the selected session)"
-          focus={mode.kind === "main"}
+          focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);
             setSuggestion(0);
