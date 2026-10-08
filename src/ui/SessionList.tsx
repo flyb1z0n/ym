@@ -24,7 +24,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab }: Pr
         <Text dimColor>
           {tab === "sessions"
             ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a Cursor chat."
-            : "No archived sessions. Ctrl-T archives the selected one."}
+            : "No archived sessions. Ctrl-A archives the selected one."}
         </Text>
       </Box>
     );

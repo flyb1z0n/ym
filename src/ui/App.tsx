@@ -40,7 +40,7 @@ type Mode =
 
 type Flash = { text: string; error?: boolean } | undefined;
 
-const KEYS = "⏎ open · ↑↓ select · @ folder · ^R rename · ^X stop · ^T archive · ^D delete · ^O import · ^G back here";
+const KEYS = "⏎ open · ↑↓ select · @ folder · ^R rename · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
@@ -194,7 +194,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           say(`Stopped ${session.name}. Press Enter to resume it.`);
         });
       }
-      if (input === "t") {
+      if (input === "a") {
         return attempt(() => {
           const next = toggleArchive(session);
           say(next.archivedAt ? `Archived ${session.name}.` : `Unarchived ${session.name}.`);

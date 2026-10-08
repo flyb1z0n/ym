@@ -33,7 +33,7 @@ export function LineInput({ value, onChange, onSubmit, placeholder = "", focus =
       };
       if (key.leftArrow) return setCursor(Math.max(0, cursor - 1));
       if (key.rightArrow) return setCursor(Math.min(value.length, cursor + 1));
-      if (key.home || (key.ctrl && input === "a")) return setCursor(0);
+      if (key.home) return setCursor(0);
       if (key.end || (key.ctrl && input === "e")) return setCursor(value.length);
       if (key.backspace || key.delete) {
         if (cursor === 0) return;
