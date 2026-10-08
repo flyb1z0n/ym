@@ -7,6 +7,7 @@ export const eventsDir = () => join(ymHome(), "events");
 export const sessionFile = (id: string) => join(sessionsDir(), `${id}.json`);
 export const eventsFile = (id: string) => join(eventsDir(), `${id}.jsonl`);
 export const installedHooksFile = () => join(ymHome(), "installed-hooks.json");
+export const settingsFile = () => join(ymHome(), "config.json");
 
 export const cursorHome = () => process.env.YM_CURSOR_HOME ?? join(homedir(), ".cursor");
 
