@@ -10,12 +10,22 @@ import {
   stopSession,
   toggleArchive,
 } from "../core/actions.ts";
-import { filterRows, TABS, tabCounts, type TabId } from "../core/filter.ts";
+import { defaultModelName } from "../core/cursor.ts";
+import {
+  filterRows,
+  flattenGroups,
+  GROUP_MODES,
+  groupRows,
+  TABS,
+  tabCounts,
+  type GroupMode,
+  type TabId,
+} from "../core/filter.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
 import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
-import { FilterTabs, tabLabel } from "./FilterTabs.tsx";
+import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { tildify } from "./format.ts";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
@@ -30,7 +40,7 @@ type Mode =
 
 type Flash = { text: string; error?: boolean } | undefined;
 
-const KEYS = "⏎ open · ↑↓ select · Tab filter · @ folder · ^R rename · ^X stop · ^T archive · ^D delete · ^O import · ^G back here";
+const KEYS = "⏎ open · ↑↓ select · @ folder · ^R rename · ^X stop · ^T archive · ^D delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
@@ -39,7 +49,9 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const { exit } = useApp();
   const { columns, rows: termRows } = useWindowSize();
   const { rows, panes, refresh } = useDashboard();
-  const [tab, setTab] = useState<TabId>("all");
+  const [tab, setTab] = useState<TabId>("sessions");
+  const [group, setGroup] = useState<GroupMode>("status");
+  const [model] = useState(defaultModelName);
   const [selectedId, setSelectedId] = useState<string>();
   const [mode, setMode] = useState<Mode>({ kind: "main" });
   const [flash, setFlash] = useState<Flash>(
@@ -51,7 +63,8 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [lastCwd, setLastCwd] = useState(process.cwd());
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
 
-  const visible = useMemo(() => filterRows(rows, tab), [rows, tab]);
+  const groups = useMemo(() => groupRows(filterRows(rows, tab), group), [rows, tab, group]);
+  const visible = useMemo(() => flattenGroups(groups), [groups]);
   const counts = useMemo(() => tabCounts(rows), [rows]);
   const foundIndex = visible.findIndex((r) => r.session.id === selectedId);
   const index = foundIndex === -1 ? 0 : foundIndex;
@@ -131,7 +144,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     startSession(input)
       .then((s) => {
         setLastCwd(s.cwd);
-        setTab("all");
+        setTab("sessions");
         setSelectedId(s.id);
         say(`Started ${s.name}. Press Enter to open it.`);
       })
@@ -152,9 +165,13 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         return suggestions.length ? setSuggestion(Math.min(suggestions.length - 1, suggestionIndex + 1)) : select(index + 1);
       }
       if (key.tab) {
-        if (suggestions.length && !key.shift) return acceptSuggestion();
+        if (key.shift) {
+          const i = GROUP_MODES.findIndex((m) => m.id === group);
+          return setGroup(GROUP_MODES[(i + 1) % GROUP_MODES.length]!.id);
+        }
+        if (suggestions.length) return acceptSuggestion();
         const i = TABS.findIndex((t) => t.id === tab);
-        return setTab(TABS[(i + (key.shift ? TABS.length - 1 : 1)) % TABS.length]!.id);
+        return setTab(TABS[(i + 1) % TABS.length]!.id);
       }
       if (key.escape) return setDismissed(text);
       if (!key.ctrl) return;
@@ -228,20 +245,26 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     );
   }
 
-  const tabsText = TABS.map((t) => tabLabel(t.label, counts[t.id])).join("");
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
     : `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
   const fixedLines =
-    linesFor(tabsText, columns) + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
+    HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
   const listHeight = Math.max(3, termRows - fixedLines);
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <FilterTabs active={tab} counts={counts} />
-      <SessionList rows={visible} selected={index} width={columns} height={listHeight} tab={tab} />
+      <Header model={model} folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} />
+      <SessionList
+        groups={groups}
+        mode={group}
+        selectedId={current?.session.id}
+        width={columns}
+        height={listHeight}
+        tab={tab}
+      />
       {suggestions.map((path, i) => (
         <Text key={path} inverse={i === suggestionIndex} color="cyan" wrap="truncate">
           {`  @${tildify(path)}`}

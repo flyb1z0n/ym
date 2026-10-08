@@ -36,6 +36,17 @@ describe("status", () => {
     expect(statusAfter(turn(1, "error"))).toBe("error");
   });
 
+  test("the error stop Cursor emits right after an interrupt is not an error", () => {
+    // Recorded from a real Cursor CLI session interrupted mid-turn.
+    const interrupted: HookEvent[] = [
+      ...turn(1).slice(0, 3),
+      { ts: 1000, event: "stop", stopStatus: "aborted" },
+      { ts: 1015, event: "stop", stopStatus: "error" },
+    ];
+    expect(statusAfter(interrupted, alive, 2000)).toBe("your_turn");
+    expect(statusAfter([...interrupted, ...turn(5000, "error")], alive, 6000)).toBe("error");
+  });
+
   test("sessionEnd or a dead/missing window is exited", () => {
     expect(statusAfter([...turn(1), { ts: 9, event: "sessionEnd" }])).toBe("exited");
     expect(statusAfter(turn(1), dead)).toBe("exited");

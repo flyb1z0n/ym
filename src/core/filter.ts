@@ -1,14 +1,9 @@
 import type { Session, Status } from "./types.ts";
 
-export type TabId = "all" | "your_turn" | "working" | "error" | "exited" | "imported" | "archived";
+export type TabId = "sessions" | "archived";
 
 export const TABS: { id: TabId; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "your_turn", label: "Your turn" },
-  { id: "working", label: "Working" },
-  { id: "error", label: "Error" },
-  { id: "exited", label: "Exited" },
-  { id: "imported", label: "Imported" },
+  { id: "sessions", label: "Sessions" },
   { id: "archived", label: "Archived" },
 ];
 
@@ -18,38 +13,65 @@ export interface Row {
   lastActivity: number;
 }
 
-const ORDER: Record<Status, number> = {
-  your_turn: 0,
-  error: 1,
-  working: 2,
-  stale: 3,
-  exited: 4,
-  imported: 5,
-};
-
-function tabOf(status: Status): TabId {
-  return status === "stale" ? "working" : status;
-}
-
 export function matchesTab(row: Row, tab: TabId): boolean {
-  const archived = row.session.archivedAt !== undefined;
-  if (tab === "archived") return archived;
-  if (archived) return false;
-  return tab === "all" || tabOf(row.status) === tab;
+  return (row.session.archivedAt !== undefined) === (tab === "archived");
 }
 
-export function sortRows(rows: Row[]): Row[] {
-  return [...rows].sort(
-    (a, b) => ORDER[a.status] - ORDER[b.status] || b.lastActivity - a.lastActivity,
-  );
-}
-
-export function filterRows(rows: Row[], tab: TabId): Row[] {
-  return sortRows(rows.filter((r) => matchesTab(r, tab)));
-}
+export const filterRows = (rows: Row[], tab: TabId) => rows.filter((r) => matchesTab(r, tab));
 
 export function tabCounts(rows: Row[]): Record<TabId, number> {
-  const counts = Object.fromEntries(TABS.map((t) => [t.id, 0])) as Record<TabId, number>;
-  for (const r of rows) for (const t of TABS) if (matchesTab(r, t.id)) counts[t.id]++;
+  const counts: Record<TabId, number> = { sessions: 0, archived: 0 };
+  for (const r of rows) counts[r.session.archivedAt !== undefined ? "archived" : "sessions"]++;
   return counts;
 }
+
+export type GroupMode = "status" | "folder" | "date";
+
+export const GROUP_MODES: { id: GroupMode; label: string }[] = [
+  { id: "status", label: "status" },
+  { id: "folder", label: "folder" },
+  { id: "date", label: "date" },
+];
+
+export interface Group {
+  key: string;
+  /** Undefined for the flat date list, which has no headers. */
+  label?: string;
+  status?: Status;
+  rows: Row[];
+}
+
+const STATUS_ORDER: Status[] = ["your_turn", "error", "working", "stale", "exited", "imported"];
+
+export const STATUS_GROUP_LABEL: Record<Status, string> = {
+  your_turn: "Your turn",
+  error: "Error",
+  working: "Working",
+  stale: "Stale",
+  exited: "Exited",
+  imported: "Imported",
+};
+
+const byRecent = (a: Row, b: Row) => b.lastActivity - a.lastActivity;
+
+export function groupRows(rows: Row[], mode: GroupMode): Group[] {
+  if (mode === "date") return rows.length ? [{ key: "date", rows: [...rows].sort(byRecent) }] : [];
+  if (mode === "status") {
+    return STATUS_ORDER.map((status) => ({
+      key: status,
+      label: STATUS_GROUP_LABEL[status],
+      status,
+      rows: rows.filter((r) => r.status === status).sort(byRecent),
+    })).filter((g) => g.rows.length);
+  }
+  const byFolder = new Map<string, Row[]>();
+  for (const r of [...rows].sort(byRecent)) {
+    const list = byFolder.get(r.session.cwd) ?? [];
+    list.push(r);
+    byFolder.set(r.session.cwd, list);
+  }
+  return [...byFolder].map(([cwd, list]) => ({ key: cwd, label: cwd, rows: list }));
+}
+
+/** Rows in display order, which is also the selection order. */
+export const flattenGroups = (groups: Group[]) => groups.flatMap((g) => g.rows);

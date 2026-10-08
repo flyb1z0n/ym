@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { filterRows, tabCounts, type Row } from "../src/core/filter.ts";
+import { filterRows, flattenGroups, groupRows, tabCounts, type Row } from "../src/core/filter.ts";
 import type { Session, Status } from "../src/core/types.ts";
 
 let n = 0;
-function row(status: Status, lastActivity: number, archived = false): Row {
+function row(status: Status, lastActivity: number, cwd = "/a", archived = false): Row {
   const session: Session = {
     id: `0000000${n++}`.slice(-8),
     name: `${status}-${lastActivity}`,
-    cwd: "/tmp",
+    cwd,
     chatId: "c",
     source: status === "imported" ? "import" : "ym",
     createdAt: 0,
@@ -17,48 +17,52 @@ function row(status: Status, lastActivity: number, archived = false): Row {
 }
 
 const rows = [
-  row("exited", 5),
+  row("exited", 5, "/b"),
   row("working", 3),
-  row("your_turn", 1),
+  row("your_turn", 1, "/b"),
   row("your_turn", 2),
   row("stale", 9),
-  row("imported", 8),
+  row("imported", 8, "/c"),
   row("error", 4),
-  row("your_turn", 7, true),
+  row("your_turn", 7, "/a", true),
 ];
 
 const names = (r: Row[]) => r.map((x) => x.session.name);
 
-describe("filter", () => {
-  test("All excludes archived and sorts by status priority, then most recent", () => {
-    expect(names(filterRows(rows, "all"))).toEqual([
-      "your_turn-2",
-      "your_turn-1",
-      "error-4",
-      "working-3",
-      "stale-9",
-      "exited-5",
-      "imported-8",
+describe("tabs", () => {
+  test("Sessions excludes archived; Archived shows only archived", () => {
+    expect(filterRows(rows, "sessions")).toHaveLength(7);
+    expect(names(filterRows(rows, "archived"))).toEqual(["your_turn-7"]);
+    expect(tabCounts(rows)).toEqual({ sessions: 7, archived: 1 });
+  });
+});
+
+describe("grouping", () => {
+  const active = filterRows(rows, "sessions");
+
+  test("by status: groups in priority order, most recent first inside each", () => {
+    const groups = groupRows(active, "status");
+    expect(groups.map((g) => g.label)).toEqual(["Your turn", "Error", "Working", "Stale", "Exited", "Imported"]);
+    expect(names(groups[0]!.rows)).toEqual(["your_turn-2", "your_turn-1"]);
+  });
+
+  test("by folder: folders ordered by their most recent session", () => {
+    const groups = groupRows(active, "folder");
+    expect(groups.map((g) => g.label)).toEqual(["/a", "/c", "/b"]);
+    expect(names(groups[0]!.rows)).toEqual(["stale-9", "error-4", "working-3", "your_turn-2"]);
+  });
+
+  test("by date: one flat list without a header", () => {
+    const groups = groupRows(active, "date");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.label).toBeUndefined();
+    expect(names(flattenGroups(groups))).toEqual([
+      "stale-9", "imported-8", "exited-5", "error-4", "working-3", "your_turn-2", "your_turn-1",
     ]);
   });
 
-  test("Working tab includes stale sessions", () => {
-    expect(names(filterRows(rows, "working"))).toEqual(["working-3", "stale-9"]);
-  });
-
-  test("Archived tab only shows archived sessions", () => {
-    expect(names(filterRows(rows, "archived"))).toEqual(["your_turn-7"]);
-  });
-
-  test("counts per tab", () => {
-    expect(tabCounts(rows)).toEqual({
-      all: 7,
-      your_turn: 2,
-      working: 2,
-      error: 1,
-      exited: 1,
-      imported: 1,
-      archived: 1,
-    });
+  test("empty input yields no groups", () => {
+    expect(groupRows([], "date")).toEqual([]);
+    expect(groupRows([], "status")).toEqual([]);
   });
 });

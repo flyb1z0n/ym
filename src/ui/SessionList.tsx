@@ -1,52 +1,74 @@
 import { Box, Text } from "ink";
-import type { Row, TabId } from "../core/filter.ts";
-import { age, fit, folder, STATUS_STYLE, windowStart } from "./format.ts";
+import type { Group, GroupMode, Row, TabId } from "../core/filter.ts";
+import { age, fit, folder, STATUS_STYLE, tildify, windowStart } from "./format.ts";
 
 interface Props {
-  rows: Row[];
-  selected: number;
+  groups: Group[];
+  mode: GroupMode;
+  selectedId: string | undefined;
   width: number;
   height: number;
   tab: TabId;
 }
 
-export function SessionList({ rows, selected, width, height, tab }: Props) {
-  const inner = width - 4;
+type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean };
+
+const folderLabel = (row: Row) =>
+  folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
+
+export function SessionList({ groups, mode, selectedId, width, height, tab }: Props) {
   const bodyHeight = height - 2;
-  if (rows.length === 0) {
+  if (groups.length === 0) {
     return (
       <Box borderStyle="round" width={width} height={height} paddingX={1}>
         <Text dimColor>
-          {tab === "all"
+          {tab === "sessions"
             ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a Cursor chat."
-            : "Nothing here."}
+            : "No archived sessions. Ctrl-T archives the selected one."}
         </Text>
       </Box>
     );
   }
-  const start = windowStart(rows.length, selected, bodyHeight);
-  const statusWidth = 12;
+
+  const items: Item[] = groups.flatMap((g): Item[] => [
+    ...(g.label ? [{ kind: "header" as const, group: g }] : []),
+    ...g.rows.map((row) => ({ kind: "row" as const, row, nested: !!g.label })),
+  ]);
+  const selected = Math.max(0, items.findIndex((i) => i.kind === "row" && i.row.session.id === selectedId));
+  const start = windowStart(items.length, selected, bodyHeight);
+
+  const inner = width - 4;
+  const indent = mode === "date" ? 0 : 2;
+  const statusWidth = mode === "status" ? 2 : 12;
   const ageWidth = 4;
-  const folderWidth = Math.min(16, Math.max(6, Math.floor(inner * 0.25)));
-  const nameWidth = Math.max(4, inner - 2 - statusWidth - folderWidth - ageWidth - 3);
+  const folderWidth = mode === "folder" ? 0 : Math.min(16, Math.max(6, Math.floor(inner * 0.25)));
+  const nameWidth = Math.max(4, inner - indent - statusWidth - (folderWidth ? folderWidth + 1 : 0) - ageWidth - 2);
 
   return (
     <Box borderStyle="round" width={width} height={height} flexDirection="column" paddingX={1}>
-      {rows.slice(start, start + bodyHeight).map((row, i) => {
-        const isSelected = start + i === selected;
+      {items.slice(start, start + bodyHeight).map((item, i) => {
+        if (item.kind === "header") {
+          const { group } = item;
+          const color = group.status ? STATUS_STYLE[group.status].color : "green";
+          return (
+            <Text key={`h-${group.key}`} wrap="truncate">
+              <Text bold color={color}>
+                {group.status ? STATUS_STYLE[group.status].icon : "▸"} {mode === "folder" ? tildify(group.key) : group.label}
+              </Text>
+              <Text dimColor> {group.rows.length}</Text>
+            </Text>
+          );
+        }
+        const { row } = item;
         const style = STATUS_STYLE[row.status];
-        const archived = row.session.archivedAt !== undefined;
         return (
-          <Text key={row.session.id} wrap="truncate" inverse={isSelected}>
-            <Text color={style.color}>{fit(`${style.icon} ${style.label}`, statusWidth)}</Text>
-            {"  "}
-            <Text dimColor={archived}>{fit(row.session.name, nameWidth)}</Text>{" "}
-            <Text dimColor>
-              {fit(
-                folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : ""),
-                folderWidth,
-              )}
-            </Text>{" "}
+          <Text key={row.session.id} wrap="truncate" inverse={start + i === selected}>
+            {" ".repeat(item.nested ? indent : 0)}
+            <Text color={style.color}>
+              {fit(mode === "status" ? style.icon : `${style.icon} ${style.label}`, statusWidth)}
+            </Text>
+            <Text dimColor={row.session.archivedAt !== undefined}>{fit(row.session.name, nameWidth)}</Text>{" "}
+            {folderWidth ? <Text dimColor>{`${fit(folderLabel(row), folderWidth)} `}</Text> : null}
             <Text dimColor>{age(row.lastActivity).padStart(ageWidth)}</Text>
           </Text>
         );

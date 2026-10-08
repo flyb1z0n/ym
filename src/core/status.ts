@@ -17,12 +17,15 @@ const WORKING_EVENTS = new Set([
 ]);
 
 const OK_STOP = new Set(["completed", "aborted"]);
+/** Interrupting a turn makes Cursor emit stop "aborted" and then, within milliseconds, stop "error". */
+const ABORT_ECHO_MS = 2000;
 
 export type BaseStatus = "working" | "your_turn" | "error" | "exited" | "none";
 
 export interface SessionState {
   base: BaseStatus;
   lastEventAt: number;
+  abortedAt?: number;
 }
 
 export const initialState = (): SessionState => ({ base: "none", lastEventAt: 0 });
@@ -31,7 +34,11 @@ export function applyEvent(state: SessionState, ev: HookEvent): SessionState {
   const at = Math.max(state.lastEventAt, ev.ts);
   if (ev.event === "ymLaunch") return { base: ev.withPrompt ? "working" : "your_turn", lastEventAt: at };
   if (ev.event === "stop") {
-    return { base: OK_STOP.has(ev.stopStatus ?? "completed") ? "your_turn" : "error", lastEventAt: at };
+    const status = ev.stopStatus ?? "completed";
+    if (status === "aborted") return { base: "your_turn", lastEventAt: at, abortedAt: ev.ts };
+    if (OK_STOP.has(status)) return { base: "your_turn", lastEventAt: at };
+    if (state.abortedAt !== undefined && ev.ts - state.abortedAt < ABORT_ECHO_MS) return { ...state, lastEventAt: at };
+    return { base: "error", lastEventAt: at };
   }
   if (ev.event === "sessionEnd") return { base: "exited", lastEventAt: at };
   if (WORKING_EVENTS.has(ev.event)) return { base: "working", lastEventAt: at };
