@@ -7,7 +7,7 @@ import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
 import { appendEvent, deleteSession, loadSession, newSessionId, saveSession } from "./store.ts";
 import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
-import type { PaneInfo, Session } from "./types.ts";
+import type { HighlightColor, PaneInfo, Session } from "./types.ts";
 import { removeWorktree } from "./worktree.ts";
 
 export interface NewSessionInput {
@@ -137,6 +137,14 @@ export function toggleArchive(s: Session): Session {
   const next: Session = { ...latest(s) };
   if (next.archivedAt === undefined) next.archivedAt = Date.now();
   else delete next.archivedAt;
+  saveSession(next);
+  return next;
+}
+
+export function setHighlightColor(s: Session, color: HighlightColor | undefined): Session {
+  const next: Session = { ...latest(s) };
+  if (color) next.highlightColor = color;
+  else delete next.highlightColor;
   saveSession(next);
   return next;
 }
