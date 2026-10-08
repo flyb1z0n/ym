@@ -118,18 +118,20 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   };
 
   // Keep the selected session's live pane on the right side of the window.
+  // For brand new sessions, wait until chatId is attached before showing the pane,
+  // so the preview doesn't flash Cursor's transient startup state.
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
         if (mode.kind === "settings") unshow();
-        else if (currentPane) show(currentPane.paneId);
+        else if (currentPane && current?.session.chatId) show(currentPane.paneId);
         else unshow();
       } catch (e) {
         say((e as Error).message, true);
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [currentPane?.paneId, mode.kind]);
+  }, [currentPane?.paneId, current?.session.chatId, mode.kind]);
 
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
