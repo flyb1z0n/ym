@@ -1,6 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
+import { suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { appendEvent, deleteSession, newSessionId, saveSession } from "./store.ts";
@@ -38,9 +39,13 @@ function agentLaunch(s: Session, prompt?: string): AgentLaunch {
 export async function startSession(input: NewSessionInput): Promise<Session> {
   const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
   if (!cwd) throw new Error("No folder to start in.");
-  const chatId = await createChat(cwd);
-  const id = newSessionId();
+  const settings = loadSettings();
   const prompt = input.prompt.trim();
+  const [chatId, suggested] = await Promise.all([
+    createChat(cwd),
+    settings.useWorktrees && settings.nameWorktrees && prompt ? suggestWorktreeName(prompt) : undefined,
+  ]);
+  const id = newSessionId();
   const session: Session = {
     id,
     name: input.name?.trim() || defaultName(prompt, id),
@@ -50,7 +55,7 @@ export async function startSession(input: NewSessionInput): Promise<Session> {
     createdAt: Date.now(),
   };
   if (addDirs.length) session.addDirs = addDirs;
-  if (loadSettings().useWorktrees) session.worktree = id;
+  if (settings.useWorktrees) session.worktree = suggested ? uniqueWorktreeName(suggested, cwd) : id;
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
   newAgentPane(agentLaunch(session, prompt));

@@ -3,18 +3,23 @@ import { settingsFile, ymHome } from "./paths.ts";
 
 export interface Settings {
   useWorktrees: boolean;
+  /** Ask a small model to name the worktree after the prompt instead of using the session id. */
+  nameWorktrees: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   useWorktrees: true,
+  nameWorktrees: true,
 };
+
+const flag = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
 
 export function loadSettings(): Settings {
   try {
     const value = JSON.parse(readFileSync(settingsFile(), "utf8")) as Partial<Settings>;
     return {
-      useWorktrees:
-        typeof value.useWorktrees === "boolean" ? value.useWorktrees : DEFAULT_SETTINGS.useWorktrees,
+      useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
+      nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

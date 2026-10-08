@@ -151,13 +151,14 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     if (errors.length) return say(errors.join(", "), true);
     const input = { prompt: parsed.prompt, folders };
     setText("");
-    say(`Starting Cursor in ${folders.map(tildify).join(" + ")}…`);
+    const naming = settings.useWorktrees && settings.nameWorktrees && !!input.prompt.trim();
+    say(`${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}…`);
     startSession(input)
       .then((s) => {
         setLastCwd(s.cwd);
         setTab("sessions");
         setSelectedId(s.id);
-        say(`Started ${s.name}. Press Enter to open it.`);
+        say(`Started ${s.name}${s.worktree ? ` in worktree ${s.worktree}` : ""}. Press Enter to open it.`);
       })
       .catch((e: Error) => say(e.message, true))
       .finally(refresh);

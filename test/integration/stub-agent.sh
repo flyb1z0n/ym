@@ -8,6 +8,12 @@ if [[ "${1:-}" == "create-chat" ]]; then
   exit 0
 fi
 
+# Worktree naming call: answer like a model would, untidy on purpose.
+if [[ "${1:-}" == "-p" ]]; then
+  echo "Do The Thing!"
+  exit 0
+fi
+
 prompt="${!#}"
 echo "stub agent: $*"
 if [[ "$prompt" != "--trust" ]]; then
