@@ -138,7 +138,12 @@ function adoptLegacyPanes(): void {
 /** The dashboard window always has a right pane: the shown agent or the placeholder. */
 export function ensureDashLayout(cwd: string): void {
   const panes = listPanes();
-  if (panes.some((p) => p.window === DASH_WINDOW)) return;
+  const dashPane = panes.find((p) => p.window === DASH_WINDOW);
+  if (dashPane) {
+    // Keep existing placeholder panes aligned with the latest placeholder text/behavior.
+    if (dashPane.placeholder) must(["respawn-pane", "-k", "-t", dashPane.paneId, "-c", cwd, ...PLACEHOLDER_CMD]);
+    return;
+  }
   for (const p of panes.filter((x) => x.placeholder)) tmux(["kill-pane", "-t", p.paneId]);
   const paneId = must([
     "split-window", "-h", "-d", "-l", "60%", "-t", UI_PANE, "-c", cwd, "-P", "-F", "#{pane_id}", ...PLACEHOLDER_CMD,
