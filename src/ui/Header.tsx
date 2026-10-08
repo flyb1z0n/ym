@@ -4,9 +4,9 @@ import type { Status } from "../core/types.ts";
 import { STATUS_STYLE, tildify } from "./format.ts";
 
 const LOGO = [
-  "        ╭──────────────╮",
-  " (^_^)7 ┤ Yes, Master! │",
-  "        ╰──────────────╯",
+  "╭──────────────╮",
+  "│ Yes, Master! │",
+  "╰──────────────╯",
 ];
 
 const SUMMARY: { status: Status; label: string }[] = [
