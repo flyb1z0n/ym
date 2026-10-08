@@ -55,17 +55,21 @@ export function Header({ model, folder, rows, tab, counts, group, dimmed = false
               </Text>
             ))}
           </Text>
-          <Text dimColor wrap="truncate">
-            group by{" "}
+          <Text wrap="truncate">
+            <Text dimColor>group by: </Text>
             {GROUP_MODES.map((m, i) => (
               <Text key={m.id}>
-                {i > 0 ? " · " : ""}
-                <Text bold={m.id === group} dimColor={m.id !== group} color={m.id === group ? "green" : undefined}>
-                  {m.label}
-                </Text>
+                {i > 0 ? <Text dimColor> · </Text> : null}
+                {m.id === group ? (
+                  <Text bold color="green" dimColor={dimmed}>
+                    {m.label}
+                  </Text>
+                ) : (
+                  <Text dimColor>{m.label}</Text>
+                )}
               </Text>
             ))}
-            {"  (⇧Tab)"}
+            <Text dimColor>{"  (⇧Tab)"}</Text>
           </Text>
         </Box>
       </Box>
