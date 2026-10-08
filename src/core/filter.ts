@@ -44,7 +44,7 @@ export interface Group {
 const STATUS_ORDER: Status[] = ["your_turn", "error", "working", "stale", "exited", "imported"];
 
 export const STATUS_GROUP_LABEL: Record<Status, string> = {
-  your_turn: "Your turn",
+  your_turn: "Ready",
   error: "Error",
   working: "Working",
   stale: "Stale",

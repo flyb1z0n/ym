@@ -18,12 +18,12 @@ const statusAfter = (events: HookEvent[], window = alive, now = 10) =>
   deriveStatus(ym, applyEvents(initialState(), events), window, now);
 
 describe("status", () => {
-  test("launch with prompt is working, without prompt is your turn", () => {
+  test("launch with prompt is working, without prompt is ready", () => {
     expect(statusAfter([{ ts: 1, event: "ymLaunch", withPrompt: true }])).toBe("working");
     expect(statusAfter([{ ts: 1, event: "ymLaunch", withPrompt: false }])).toBe("your_turn");
   });
 
-  test("a full turn ends on your turn", () => {
+  test("a full turn ends ready", () => {
     expect(statusAfter(turn(1))).toBe("your_turn");
   });
 
@@ -31,7 +31,7 @@ describe("status", () => {
     expect(statusAfter(turn(1).slice(0, 2))).toBe("working");
   });
 
-  test("aborted stop is your turn, other stop statuses are errors", () => {
+  test("aborted stop is ready, other stop statuses are errors", () => {
     expect(statusAfter(turn(1, "aborted"))).toBe("your_turn");
     expect(statusAfter(turn(1, "error"))).toBe("error");
   });
