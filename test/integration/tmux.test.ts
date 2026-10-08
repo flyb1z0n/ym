@@ -15,6 +15,7 @@ chmodSync(process.env.YM_AGENT_BIN, 0o755);
 
 const actions = await import("../../src/core/actions.ts");
 const tmux = await import("../../src/core/tmux.ts");
+const { saveSettings } = await import("../../src/core/settings.ts");
 const { EventReader, listSessions } = await import("../../src/core/store.ts");
 const { applyEvents, deriveStatus, initialState } = await import("../../src/core/status.ts");
 
@@ -65,9 +66,10 @@ describe("tmux integration with a stub agent", () => {
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
     expect(s.addDirs).toEqual([extra]);
+    expect(s.worktree).toBe(s.id);
     await waitFor(s.id, "your_turn");
     const p = pane(s.id)!;
-    expect(tmux.capturePane(p.paneId)).toContain(`--add-dir ${extra} do the thing`);
+    expect(tmux.capturePane(p.paneId)).toContain(`--worktree ${s.id} --add-dir ${extra} do the thing`);
 
     tmux.show(p.paneId);
     expect(pane(s.id)?.shown).toBe(true);
@@ -84,6 +86,7 @@ describe("tmux integration with a stub agent", () => {
     actions.resumeSession(s, pane(s.id));
     await waitFor(s.id, "your_turn");
     expect(pane(s.id)).toEqual({ paneId: p.paneId, dead: false, shown: true });
+    expect(tmux.capturePane(p.paneId)).toContain(`--worktree ${s.id}`);
 
     actions.stopSession(pane(s.id));
     await waitFor(s.id, "exited");
@@ -118,5 +121,19 @@ describe("tmux integration with a stub agent", () => {
     tmux.unshow();
     expect(pane(b.id)?.shown).toBe(false);
     expect(dashPanes()).toHaveLength(2);
+  }, 30000);
+
+  test("the setting can disable worktrees for new sessions", async () => {
+    saveSettings({ useWorktrees: false });
+    try {
+      const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
+      expect(s.worktree).toBeUndefined();
+      await waitFor(s.id, "your_turn");
+      const p = pane(s.id)!;
+      expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
+      actions.stopSession(p);
+    } finally {
+      saveSettings({ useWorktrees: true });
+    }
   }, 30000);
 });

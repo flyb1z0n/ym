@@ -23,6 +23,7 @@ import {
 } from "../core/filter.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
+import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
@@ -31,6 +32,7 @@ import { ConfirmDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
 import { SessionList } from "./SessionList.tsx";
+import { SettingsView } from "./SettingsView.tsx";
 import { useDashboard } from "./useDashboard.ts";
 
 type ConfirmAction = "stop" | "archive" | "unarchive" | "delete";
@@ -39,11 +41,12 @@ type Mode =
   | { kind: "main" }
   | { kind: "rename"; id: string; text: string }
   | { kind: "confirm"; id: string; action: ConfirmAction }
-  | { kind: "import"; chats: CursorChat[] };
+  | { kind: "import"; chats: CursorChat[] }
+  | { kind: "settings" };
 
 type Flash = { text: string; error?: boolean } | undefined;
 
-const KEYS = "⏎ open · ↑↓ select · @ folder · ^R rename · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
+const KEYS = "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
@@ -65,6 +68,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [dismissed, setDismissed] = useState<string>();
   const [lastCwd, setLastCwd] = useState(process.cwd());
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
+  const [settings, setSettings] = useState(loadSettings);
 
   const groups = useMemo(() => groupRows(filterRows(rows, tab), group), [rows, tab, group]);
   const visible = useMemo(() => flattenGroups(groups), [groups]);
@@ -112,14 +116,15 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        if (currentPane) show(currentPane.paneId);
+        if (mode.kind === "settings") unshow();
+        else if (currentPane) show(currentPane.paneId);
         else unshow();
       } catch (e) {
         say((e as Error).message, true);
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [currentPane?.paneId]);
+  }, [currentPane?.paneId, mode.kind]);
 
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
@@ -190,6 +195,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         const tracked = new Set(rows.map((r) => r.session.chatId));
         return setMode({ kind: "import", chats: scanChats().filter((c) => !tracked.has(c.chatId)) });
       }
+      if (input === "s") return setMode({ kind: "settings" });
       if (!current) return;
       const { session } = current;
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
@@ -223,6 +229,25 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           say(`Imported ${s.name}.`);
           refresh();
         }}
+      />
+    );
+  }
+
+  if (mode.kind === "settings") {
+    return (
+      <SettingsView
+        settings={settings}
+        width={columns}
+        height={termRows}
+        onChange={(next) => {
+          try {
+            saveSettings(next);
+            setSettings(next);
+          } catch (e) {
+            say((e as Error).message, true);
+          }
+        }}
+        onClose={() => setMode({ kind: "main" })}
       />
     );
   }

@@ -37,10 +37,12 @@ export interface LaunchOptions {
   chatId: string;
   addDirs?: string[];
   prompt?: string;
+  worktree?: string;
 }
 
 export function launchCommand(o: LaunchOptions): string[] {
   const cmd = [AGENT_BIN(), "--resume", o.chatId, "--trust"];
+  if (o.worktree) cmd.push("--worktree", o.worktree);
   for (const dir of o.addDirs ?? []) cmd.push("--add-dir", dir);
   // A leading dash would be parsed as a flag.
   if (o.prompt) cmd.push(o.prompt.startsWith("-") ? ` ${o.prompt}` : o.prompt);

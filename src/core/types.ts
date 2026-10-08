@@ -17,6 +17,8 @@ export interface Session {
   source: "ym" | "import";
   createdAt: number;
   archivedAt?: number;
+  /** Cursor-managed worktree name. Absent for sessions launched in the source workspace. */
+  worktree?: string;
 }
 
 export interface HookEvent {

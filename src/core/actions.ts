@@ -2,6 +2,7 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import { createChat, launchCommand } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
 import { expandHome } from "./paths.ts";
+import { loadSettings } from "./settings.ts";
 import { appendEvent, deleteSession, newSessionId, saveSession } from "./store.ts";
 import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
 import type { PaneInfo, Session } from "./types.ts";
@@ -30,7 +31,7 @@ function agentLaunch(s: Session, prompt?: string): AgentLaunch {
     id: s.id,
     cwd: s.cwd,
     env: { YM_SESSION_ID: s.id },
-    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt }),
+    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt, worktree: s.worktree }),
   };
 }
 
@@ -49,6 +50,7 @@ export async function startSession(input: NewSessionInput): Promise<Session> {
     createdAt: Date.now(),
   };
   if (addDirs.length) session.addDirs = addDirs;
+  if (loadSettings().useWorktrees) session.worktree = id;
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
   newAgentPane(agentLaunch(session, prompt));
