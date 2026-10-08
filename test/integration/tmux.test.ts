@@ -123,6 +123,30 @@ describe("tmux integration with a stub agent", () => {
     expect(dashPanes()).toHaveLength(2);
   }, 30000);
 
+  test("a new session is listed as working before its chat exists", async () => {
+    let listed: string | undefined;
+    const started = actions.startSession({ prompt: "early", folders: [dir] }, (draft) => {
+      listed = statusOf(draft.id);
+      expect(() => actions.resumeSession(draft, undefined)).toThrow("still starting");
+    });
+    expect(listed).toBe("working");
+    const s = await started;
+    expect(s.chatId).not.toBe("");
+    await waitFor(s.id, "your_turn");
+    actions.stopSession(pane(s.id));
+  }, 30000);
+
+  test("removing a session while its chat is being created skips the launch", async () => {
+    let id = "";
+    const started = actions.startSession({ prompt: "gone", folders: [dir] }, (draft) => {
+      id = draft.id;
+      actions.removeSession(draft, undefined);
+    });
+    await expect(started).rejects.toThrow("removed before Cursor started");
+    expect(pane(id)).toBeUndefined();
+    expect(listSessions().some((s) => s.id === id)).toBe(false);
+  });
+
   test("the setting can disable worktrees for new sessions", async () => {
     saveSettings({ useWorktrees: false });
     try {

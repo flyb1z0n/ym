@@ -1,6 +1,8 @@
 import type { HookEvent, Session, Status, PaneInfo } from "./types.ts";
 
 export const STALE_MS = 10 * 60 * 1000;
+/** A session still without a chat after this long lost its starter (e.g. the dashboard restarted). */
+export const START_TIMEOUT_MS = 2 * 60 * 1000;
 
 const WORKING_EVENTS = new Set([
   "beforeSubmitPrompt",
@@ -50,11 +52,12 @@ export function applyEvents(state: SessionState, events: HookEvent[]): SessionSt
 }
 
 export function deriveStatus(
-  session: Pick<Session, "source">,
+  session: Pick<Session, "source" | "chatId" | "createdAt">,
   state: SessionState,
   pane: PaneInfo | undefined,
   now: number,
 ): Status {
+  if (isStarting(session)) return now - session.createdAt > START_TIMEOUT_MS ? "exited" : "working";
   if (state.base === "none") {
     if (session.source === "import") return "imported";
     return isAlive(pane) ? "working" : "exited";
@@ -63,5 +66,7 @@ export function deriveStatus(
   if (state.base === "working" && now - state.lastEventAt > STALE_MS) return "stale";
   return state.base;
 }
+
+export const isStarting = (s: Pick<Session, "chatId">) => !s.chatId;
 
 export const isAlive = (w: PaneInfo | undefined) => !!w && !w.dead;
