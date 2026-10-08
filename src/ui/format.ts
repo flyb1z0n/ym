@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import type { Status } from "../core/types.ts";
 
 export const STATUS_STYLE: Record<Status, { icon: string; label: string; color: string }> = {
-  your_turn: { icon: "●", label: "your turn", color: "yellow" },
+  your_turn: { icon: "●", label: "ready", color: "yellow" },
   error: { icon: "!", label: "error", color: "red" },
   working: { icon: "◐", label: "working", color: "cyan" },
   stale: { icon: "◌", label: "stale?", color: "magenta" },

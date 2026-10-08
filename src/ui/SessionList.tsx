@@ -9,6 +9,7 @@ interface Props {
   width: number;
   height: number;
   tab: TabId;
+  dimmed?: boolean;
 }
 
 type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean };
@@ -16,7 +17,7 @@ type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: 
 const folderLabel = (row: Row) =>
   folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
 
-export function SessionList({ groups, mode, selectedId, width, height, tab }: Props) {
+export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false }: Props) {
   const bodyHeight = height - 2;
   if (groups.length === 0) {
     return (
@@ -51,7 +52,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab }: Pr
           const { group } = item;
           const color = group.status ? STATUS_STYLE[group.status].color : "green";
           return (
-            <Text key={`h-${group.key}`} wrap="truncate">
+            <Text key={`h-${group.key}`} dimColor={dimmed} wrap="truncate">
               <Text bold color={color}>
                 {group.status ? STATUS_STYLE[group.status].icon : "▸"} {mode === "folder" ? tildify(group.key) : group.label}
               </Text>
@@ -62,7 +63,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab }: Pr
         const { row } = item;
         const style = STATUS_STYLE[row.status];
         return (
-          <Text key={row.session.id} wrap="truncate" inverse={start + i === selected}>
+          <Text key={row.session.id} dimColor={dimmed} wrap="truncate" inverse={start + i === selected}>
             {" ".repeat(item.nested ? indent : 0)}
             <Text color={style.color}>
               {fit(mode === "status" ? style.icon : `${style.icon} ${style.label}`, statusWidth)}

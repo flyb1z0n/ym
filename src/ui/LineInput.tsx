@@ -66,7 +66,7 @@ export function LineInput({ value, onChange, onSubmit, placeholder = "", focus =
   }
   const start = width && value.length >= width ? Math.max(0, Math.min(cursor - width + 1, value.length - width + 1)) : 0;
   const end = width ? start + width : undefined;
-  if (!focus) return <Text wrap="truncate">{value.slice(start, end)}</Text>;
+  if (!focus) return <Text dimColor wrap="truncate">{value.slice(start, end)}</Text>;
   return (
     <Text wrap="truncate">
       {value.slice(start, cursor)}

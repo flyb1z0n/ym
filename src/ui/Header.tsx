@@ -6,7 +6,7 @@ import { STATUS_STYLE, tildify } from "./format.ts";
 const LOGO = [" ▗▄▖ ", " ▐▓▌ ", " ▝▀▘ "];
 
 const SUMMARY: { status: Status; label: string }[] = [
-  { status: "your_turn", label: "your turn" },
+  { status: "your_turn", label: "ready" },
   { status: "working", label: "working" },
   { status: "error", label: "error" },
   { status: "stale", label: "stale" },
@@ -21,11 +21,12 @@ interface Props {
   tab: TabId;
   counts: Record<TabId, number>;
   group: GroupMode;
+  dimmed?: boolean;
 }
 
 export const HEADER_HEIGHT = LOGO.length + 1;
 
-export function Header({ model, folder, rows, tab, counts, group }: Props) {
+export function Header({ model, folder, rows, tab, counts, group, dimmed = false }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
@@ -35,16 +36,16 @@ export function Header({ model, folder, rows, tab, counts, group }: Props) {
       <Box>
         <Box flexDirection="column" marginRight={1}>
           {LOGO.map((line, i) => (
-            <Text key={i} color="green">
+            <Text key={i} color="green" dimColor={dimmed}>
               {line}
             </Text>
           ))}
         </Box>
         <Box flexDirection="column">
-          <Text bold wrap="truncate">
+          <Text bold dimColor={dimmed} wrap="truncate">
             ym <Text dimColor>· {model ?? "Cursor"} · {tildify(folder)}</Text>
           </Text>
-          <Text wrap="truncate">
+          <Text dimColor={dimmed} wrap="truncate">
             {summary.map((s, i) => (
               <Text key={s.status}>
                 {i > 0 ? <Text dimColor> · </Text> : null}
@@ -68,7 +69,7 @@ export function Header({ model, folder, rows, tab, counts, group }: Props) {
           </Text>
         </Box>
       </Box>
-      <Text wrap="truncate">
+      <Text dimColor={dimmed} wrap="truncate">
         {TABS.map((t) => (
           <Text key={t.id}>
             <Text inverse={t.id === tab} bold={t.id === tab}>{` ${t.label} ${counts[t.id]} `}</Text>

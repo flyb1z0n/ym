@@ -27,15 +27,18 @@ import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { tildify } from "./format.ts";
+import { ConfirmDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
 import { SessionList } from "./SessionList.tsx";
 import { useDashboard } from "./useDashboard.ts";
 
+type ConfirmAction = "stop" | "archive" | "unarchive" | "delete";
+
 type Mode =
   | { kind: "main" }
   | { kind: "rename"; id: string; text: string }
-  | { kind: "confirmDelete"; id: string }
+  | { kind: "confirm"; id: string; action: ConfirmAction }
   | { kind: "import"; chats: CursorChat[] };
 
 type Flash = { text: string; error?: boolean } | undefined;
@@ -93,13 +96,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const errors = suggestions.length && tag ? parsed.errors.filter((e) => e !== `Unknown folder @${tag.query}`) : parsed.errors;
 
   const say = (message: string, error = false) => setFlash({ text: message, error });
-  const attempt = (fn: () => void) => {
+  const attempt = (fn: () => void): boolean => {
     try {
       fn();
+      refresh();
+      return true;
     } catch (e) {
       say((e as Error).message, true);
+      refresh();
+      return false;
     }
-    refresh();
   };
 
   // Keep the selected session's live pane on the right side of the window.
@@ -189,42 +195,18 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "x") {
         if (!isAlive(currentPane)) return say("Session isn't running.");
-        return attempt(() => {
-          stopSession(currentPane);
-          say(`Stopped ${session.name}. Press Enter to resume it.`);
-        });
+        return setMode({ kind: "confirm", id: session.id, action: "stop" });
       }
       if (input === "a") {
-        return attempt(() => {
-          const next = toggleArchive(session);
-          say(next.archivedAt ? `Archived ${session.name}.` : `Unarchived ${session.name}.`);
+        return setMode({
+          kind: "confirm",
+          id: session.id,
+          action: session.archivedAt === undefined ? "archive" : "unarchive",
         });
       }
-      if (input === "d") return setMode({ kind: "confirmDelete", id: session.id });
+      if (input === "d") return setMode({ kind: "confirm", id: session.id, action: "delete" });
     },
     { isActive: mode.kind === "main" },
-  );
-
-  useInput(
-    (input, key) => {
-      if (mode.kind !== "confirmDelete") return;
-      const target = rows.find((r) => r.session.id === mode.id)?.session;
-      if (input === "y" && target) {
-        attempt(() => {
-          removeSession(target, panes.get(target.id));
-          say(`Deleted ${target.name}. The Cursor chat is untouched.`);
-        });
-      }
-      if (input === "y" || input === "n" || key.escape) setMode({ kind: "main" });
-    },
-    { isActive: mode.kind === "confirmDelete" },
-  );
-
-  useInput(
-    (_input, key) => {
-      if (key.escape) setMode({ kind: "main" });
-    },
-    { isActive: mode.kind === "rename" },
   );
 
   if (mode.kind === "import") {
@@ -253,10 +235,70 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const fixedLines =
     HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
   const listHeight = Math.max(3, termRows - fixedLines);
+  const modalOpen = mode.kind === "rename" || mode.kind === "confirm";
+  const modalTarget =
+    mode.kind === "rename" || mode.kind === "confirm"
+      ? rows.find((row) => row.session.id === mode.id)?.session
+      : undefined;
+
+  const confirmCopy = (action: ConfirmAction) => {
+    switch (action) {
+      case "stop":
+        return {
+          title: "Stop session?",
+          message: "The running agent will be interrupted. You can resume it later.",
+          confirmLabel: "Stop",
+          tone: "warning" as const,
+        };
+      case "archive":
+        return {
+          title: "Archive session?",
+          message: "It will move to the Archived tab.",
+          confirmLabel: "Archive",
+          tone: "warning" as const,
+        };
+      case "unarchive":
+        return {
+          title: "Unarchive session?",
+          message: "It will move back to the Sessions tab.",
+          confirmLabel: "Unarchive",
+          tone: "warning" as const,
+        };
+      case "delete":
+        return {
+          title: "Delete from ym?",
+          message: "Tracking data and any running pane are removed. The Cursor chat is kept.",
+          confirmLabel: "Delete",
+          tone: "danger" as const,
+        };
+    }
+  };
+
+  const runConfirmedAction = () => {
+    if (mode.kind !== "confirm") return;
+    if (!modalTarget) {
+      setMode({ kind: "main" });
+      return say("That session no longer exists.", true);
+    }
+    const { action } = mode;
+    const succeeded = attempt(() => {
+      if (action === "stop") {
+        stopSession(panes.get(modalTarget.id));
+        say(`Stopped ${modalTarget.name}. Press Enter to resume it.`);
+      } else if (action === "delete") {
+        removeSession(modalTarget, panes.get(modalTarget.id));
+        say(`Deleted ${modalTarget.name}. The Cursor chat is untouched.`);
+      } else {
+        const next = toggleArchive(modalTarget);
+        say(next.archivedAt ? `Archived ${modalTarget.name}.` : `Unarchived ${modalTarget.name}.`);
+      }
+    });
+    if (succeeded) setMode({ kind: "main" });
+  };
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <Header model={model} folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} />
+      <Header model={model} folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} />
       <SessionList
         groups={groups}
         mode={group}
@@ -264,56 +306,68 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         width={columns}
         height={listHeight}
         tab={tab}
+        dimmed={modalOpen}
       />
       {suggestions.map((path, i) => (
-        <Text key={path} inverse={i === suggestionIndex} color="cyan" wrap="truncate">
+        <Text key={path} inverse={i === suggestionIndex} color="cyan" dimColor={modalOpen} wrap="truncate">
           {`  @${tildify(path)}`}
         </Text>
       ))}
-      <Text color={flash?.error ? "red" : "green"} wrap="truncate">
+      <Text color={flash?.error ? "red" : "green"} dimColor={modalOpen} wrap="truncate">
         {flash?.text ?? " "}
       </Text>
-      <Box borderStyle="round" borderColor={mode.kind === "main" ? "green" : "yellow"} paddingX={1} width={columns}>
-        {mode.kind === "main" ? (
-          <>
-            <Box marginRight={1}>
-              <Text color="green">›</Text>
-            </Box>
-            <LineInput
-              value={text}
-              width={columns - 7}
-              placeholder="Ask Cursor… @folder to choose where (Enter on empty opens the selected session)"
-              onChange={(v) => {
-                setText(v);
-                setSuggestion(0);
-              }}
-              onSubmit={submit}
-            />
-          </>
-        ) : mode.kind === "rename" ? (
-          <>
-            <Box marginRight={1}>
-              <Text color="yellow">rename ›</Text>
-            </Box>
-            <LineInput
-              value={mode.text}
-              width={columns - 14}
-              onChange={(v) => setMode({ ...mode, text: v })}
-              onSubmit={() => {
-                const s = rows.find((r) => r.session.id === mode.id)?.session;
-                if (s) attempt(() => renameSession(s, mode.text));
-                setMode({ kind: "main" });
-              }}
-            />
-          </>
-        ) : (
-          <Text color="yellow">Delete this session from ym? The Cursor chat is kept. (y/n)</Text>
-        )}
+      <Box
+        borderStyle="round"
+        borderColor="green"
+        borderDimColor={modalOpen}
+        paddingX={1}
+        width={columns}
+      >
+        <Box marginRight={1}>
+          <Text color="green" dimColor={modalOpen}>›</Text>
+        </Box>
+        <LineInput
+          value={text}
+          width={columns - 7}
+          placeholder="Ask Cursor… @folder to choose where (Enter on empty opens the selected session)"
+          focus={mode.kind === "main"}
+          onChange={(v) => {
+            setText(v);
+            setSuggestion(0);
+          }}
+          onSubmit={submit}
+        />
       </Box>
-      <Text color={errors.length ? "red" : undefined} dimColor={!errors.length} wrap="truncate">
-        {mode.kind === "main" ? target : "Enter saves · Esc cancels"}
+      <Text color={errors.length ? "red" : undefined} dimColor={modalOpen || !errors.length} wrap="truncate">
+        {target}
       </Text>
-      <Text dimColor>{KEYS}</Text>
+      <Text dimColor={modalOpen || undefined}>{KEYS}</Text>
+      {mode.kind === "rename" ? (
+        <RenameDialog
+          value={mode.text}
+          width={columns}
+          height={termRows}
+          onChange={(value) => setMode({ ...mode, text: value })}
+          onSave={() => {
+            if (!modalTarget) {
+              setMode({ kind: "main" });
+              return say("That session no longer exists.", true);
+            }
+            if (attempt(() => renameSession(modalTarget, mode.text))) setMode({ kind: "main" });
+          }}
+          onCancel={() => setMode({ kind: "main" })}
+        />
+      ) : null}
+      {mode.kind === "confirm" ? (
+        <ConfirmDialog
+          {...confirmCopy(mode.action)}
+          subject={modalTarget?.name ?? "Session no longer exists"}
+          width={columns}
+          height={termRows}
+          onConfirm={runConfirmedAction}
+          onCancel={() => setMode({ kind: "main" })}
+        />
+      ) : null}
     </Box>
   );
 }
