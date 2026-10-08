@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun src/cli.tsx",
     "build": "bun scripts/build.ts src/cli.tsx dist/ym",
+    "setup": "bash scripts/setup.sh",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
