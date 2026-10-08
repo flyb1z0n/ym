@@ -121,6 +121,9 @@ export function ensureDashWindow(dashCommand: string[], cwd: string, build: stri
   }
   adoptLegacyPanes();
   ensureDashLayout(cwd);
+  for (const p of listPanes()) {
+    if (p.ymId && p.window !== DASH_WINDOW) lockParked(p.paneId);
+  }
 }
 
 /** Agent windows from builds before pane tagging are named after their session id. */
@@ -145,20 +148,49 @@ export function ensureDashLayout(cwd: string): void {
 
 const rightPane = () => listPanes().find((p) => p.window === DASH_WINDOW);
 
+function previewSize(): { width: number; height: number } | undefined {
+  const right = rightPane();
+  if (!right) return;
+  const [width, height] = tmux(["display-message", "-p", "-t", right.paneId, "#{pane_width}\t#{pane_height}"])
+    .stdout.trim()
+    .split("\t")
+    .map(Number);
+  if (!width || !height) return;
+  return { width, height };
+}
+
+/** Keep a parked agent window at the dashboard preview size so swap-pane does not reflow. */
+function lockParked(paneId: string): void {
+  const size = previewSize();
+  if (!size) return;
+  tmux(["set-option", "-w", "-t", paneId, "window-size", "manual"]);
+  tmux(["resize-window", "-t", paneId, "-x", String(size.width), "-y", String(size.height)]);
+}
+
+const placeholderPane = () => listPanes().find((p) => p.placeholder);
+
 /** Moves the shown agent back to its own window. */
 export function unshow(): void {
   const right = rightPane();
   if (!right || right.placeholder) return;
-  const placeholder = listPanes().find((p) => p.placeholder);
+  const placeholder = placeholderPane();
   if (placeholder) must(["swap-pane", "-d", "-s", placeholder.paneId, "-t", right.paneId]);
+  lockParked(right.paneId);
 }
 
 /** Puts an agent pane on the right side of the dashboard. */
 export function show(paneId: string): void {
-  if (rightPane()?.paneId === paneId) return;
-  unshow();
-  const placeholder = rightPane();
-  if (placeholder?.placeholder) must(["swap-pane", "-d", "-s", placeholder.paneId, "-t", paneId]);
+  const right = rightPane();
+  if (right?.paneId === paneId) return;
+  if (right && !right.placeholder) {
+    // One on-screen swap (A→B). Then park A back in its own window off-screen.
+    must(["swap-pane", "-d", "-s", paneId, "-t", right.paneId]);
+    const placeholder = placeholderPane();
+    if (placeholder) must(["swap-pane", "-d", "-s", right.paneId, "-t", placeholder.paneId]);
+    lockParked(right.paneId);
+    return;
+  }
+  if (right?.placeholder) must(["swap-pane", "-d", "-s", paneId, "-t", right.paneId]);
 }
 
 export function focusRight(): void {
@@ -194,6 +226,7 @@ export function newAgentPane(a: AgentLaunch): string {
     ...envArgs(a.env), ...a.command,
   ]).trim();
   must(["set-option", "-p", "-t", paneId, "@ym_id", a.id]);
+  lockParked(paneId);
   return paneId;
 }
 

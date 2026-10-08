@@ -114,10 +114,14 @@ describe("tmux integration with a stub agent", () => {
     const b = await actions.startSession({ prompt: "b", folders: [dir] });
     await waitFor(a.id, "your_turn");
     await waitFor(b.id, "your_turn");
+    const preview = tmux.tmux(["display-message", "-p", "-t", dashPanes()[1]!, "#{pane_width}x#{pane_height}"]).stdout.trim();
+    expect(tmux.tmux(["display-message", "-p", "-t", pane(a.id)!.paneId, "#{pane_width}x#{pane_height}"]).stdout.trim()).toBe(preview);
     tmux.show(pane(a.id)!.paneId);
     tmux.show(pane(b.id)!.paneId);
     expect(pane(a.id)?.shown).toBe(false);
     expect(pane(b.id)?.shown).toBe(true);
+    expect(tmux.tmux(["display-message", "-p", "-t", pane(a.id)!.paneId, "#{pane_width}x#{pane_height}"]).stdout.trim()).toBe(preview);
+    expect(tmux.tmux(["display-message", "-p", "-t", pane(b.id)!.paneId, "#{pane_width}x#{pane_height}"]).stdout.trim()).toBe(preview);
     tmux.unshow();
     expect(pane(b.id)?.shown).toBe(false);
     expect(dashPanes()).toHaveLength(2);
