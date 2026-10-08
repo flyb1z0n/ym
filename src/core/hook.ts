@@ -1,4 +1,4 @@
-import { appendEvent, SESSION_ID_RE } from "./store.ts";
+import { appendEvent, loadSession, SESSION_ID_RE } from "./store.ts";
 import type { HookEvent } from "./types.ts";
 
 interface HookPayload {
@@ -27,7 +27,18 @@ export async function runHook(event: string): Promise<never> {
       } catch {
         // Record the event even without a readable payload.
       }
-      appendEvent(id, toEvent(event, payload, Date.now()));
+      const ev = toEvent(event, payload, Date.now());
+      const session = loadSession(id);
+      if (
+        event === "sessionEnd" &&
+        session?.chatId &&
+        ev.chatId &&
+        ev.chatId !== session.chatId
+      ) {
+        // Subagent exit; the parent agent session is still running.
+      } else {
+        appendEvent(id, ev);
+      }
     }
   } catch {
     // Fail open.

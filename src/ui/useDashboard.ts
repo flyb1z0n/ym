@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Row } from "../core/filter.ts";
 import { notify } from "../core/notify.ts";
-import { applyEvents, deriveStatus, initialState, type SessionState } from "../core/status.ts";
+import { applyEvents, deriveStatus, initialState, isStarting, type SessionState } from "../core/status.ts";
 import { EventReader, listSessions } from "../core/store.ts";
 import { listAgentPanes } from "../core/tmux.ts";
 import type { Status, PaneInfo } from "../core/types.ts";
@@ -33,7 +33,11 @@ export function useDashboard(): DashboardData {
     const rows: Row[] = [];
     for (const session of sessions) {
       seen.add(session.id);
-      const state = applyEvents(states.current.get(session.id) ?? initialState(), reader.current.read(session.id));
+      const state = applyEvents(
+        states.current.get(session.id) ?? initialState(),
+        reader.current.read(session.id),
+        session.chatId || undefined,
+      );
       states.current.set(session.id, state);
       const status = deriveStatus(session, state, panes.get(session.id), now);
       rows.push({ session, status, lastActivity: Math.max(state.lastEventAt, session.createdAt) });
@@ -42,7 +46,8 @@ export function useDashboard(): DashboardData {
       if (before && before !== status && NOTIFY_ON.has(status) && session.archivedAt === undefined) {
         notify(`ym: ${session.name}`, STATUS_STYLE[status].label);
       }
-      previous.current.set(session.id, status);
+      // A session leaving its starting state isn't a status change worth notifying about.
+      if (!isStarting(session)) previous.current.set(session.id, status);
     }
     for (const id of states.current.keys()) {
       if (seen.has(id)) continue;

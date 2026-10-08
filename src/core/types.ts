@@ -13,6 +13,7 @@ export interface Session {
   cwd: string;
   /** Extra workspace roots, passed as --add-dir. */
   addDirs?: string[];
+  /** Empty while `agent create-chat` is still running for a freshly started session. */
   chatId: string;
   source: "ym" | "import";
   createdAt: number;

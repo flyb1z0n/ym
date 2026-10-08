@@ -153,13 +153,13 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     setText("");
     const naming = settings.useWorktrees && settings.nameWorktrees && !!input.prompt.trim();
     say(`${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}…`);
-    startSession(input)
-      .then((s) => {
-        setLastCwd(s.cwd);
-        setTab("sessions");
-        setSelectedId(s.id);
-        say(`Started ${s.name}${s.worktree ? ` in worktree ${s.worktree}` : ""}. Press Enter to open it.`);
-      })
+    startSession(input, (s) => {
+      setLastCwd(s.cwd);
+      setTab("sessions");
+      setSelectedId(s.id);
+      refresh();
+    })
+      .then((s) => say(`Started ${s.name}${s.worktree ? ` in worktree ${s.worktree}` : ""}. Press Enter to open it.`))
       .catch((e: Error) => say(e.message, true))
       .finally(refresh);
   };
@@ -272,28 +272,28 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       case "stop":
         return {
           title: "Stop session?",
-          message: "The running agent will be interrupted. You can resume it later.",
+          message: "You can resume it later.",
           confirmLabel: "Stop",
           tone: "warning" as const,
         };
       case "archive":
         return {
           title: "Archive session?",
-          message: "It will move to the Archived tab.",
+          message: "It moves to the Archived tab.",
           confirmLabel: "Archive",
           tone: "warning" as const,
         };
       case "unarchive":
         return {
           title: "Unarchive session?",
-          message: "It will move back to the Sessions tab.",
+          message: "It moves back to the Sessions tab.",
           confirmLabel: "Unarchive",
           tone: "warning" as const,
         };
       case "delete":
         return {
           title: "Delete from ym?",
-          message: "Tracking data and any running pane are removed. The Cursor chat is kept.",
+          message: "The Cursor chat is kept.",
           confirmLabel: "Delete",
           tone: "danger" as const,
         };

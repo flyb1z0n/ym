@@ -11,6 +11,7 @@ interface FrameProps {
   width: number;
   height: number;
   tone?: Tone;
+  rows: number;
   children: ReactNode;
 }
 
@@ -46,8 +47,8 @@ export function dialogBounds(termWidth: number, termHeight: number, requestedHei
   };
 }
 
-function DialogFrame({ title, width: termWidth, height: termHeight, tone = "warning", children }: FrameProps) {
-  const bounds = dialogBounds(termWidth, termHeight, 9);
+function DialogFrame({ title, width: termWidth, height: termHeight, tone = "warning", rows, children }: FrameProps) {
+  const bounds = dialogBounds(termWidth, termHeight, rows + 3);
   const color = tone === "danger" ? "red" : "yellow";
 
   return (
@@ -95,7 +96,7 @@ export function ConfirmDialog({
   });
 
   return (
-    <DialogFrame title={title} width={width} height={height} tone={tone}>
+    <DialogFrame title={title} width={width} height={height} tone={tone} rows={4}>
       <Text wrap="truncate">{subject}</Text>
       <Text dimColor wrap="truncate">
         {message}
@@ -107,7 +108,6 @@ export function ConfirmDialog({
         </Text>
         <Text inverse={choice === "cancel"}>{` Cancel `}</Text>
       </Box>
-      <Text dimColor>←→ choose · Enter select · Esc cancel</Text>
     </DialogFrame>
   );
 }
@@ -117,17 +117,13 @@ export function RenameDialog({ value, width, height, onChange, onSave, onCancel 
     if (key.escape) onCancel();
   });
 
-  const bounds = dialogBounds(width, height, 9);
+  const bounds = dialogBounds(width, height, 4);
   return (
-    <DialogFrame title="Rename session" width={width} height={height}>
-      <Text dimColor>Enter a new dashboard name.</Text>
-      <Text> </Text>
+    <DialogFrame title="Rename session" width={width} height={height} rows={1}>
       <Box>
-        <Text color="yellow">name › </Text>
-        <LineInput value={value} width={Math.max(1, bounds.width - 11)} onChange={onChange} onSubmit={onSave} />
+        <Text color="yellow">› </Text>
+        <LineInput value={value} width={Math.max(1, bounds.width - 6)} onChange={onChange} onSubmit={onSave} />
       </Box>
-      <Text> </Text>
-      <Text dimColor>Enter saves · Esc cancels</Text>
     </DialogFrame>
   );
 }
