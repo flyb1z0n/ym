@@ -1,7 +1,7 @@
 import { hasAgent } from "./core/cursor.ts";
 import { runHook } from "./core/hook.ts";
 import { hooksPath, install, isInstalled, uninstall } from "./core/install.ts";
-import { selfCommand } from "./core/self.ts";
+import { buildId, selfCommand } from "./core/self.ts";
 import { ensureDirs } from "./core/store.ts";
 import * as tmux from "./core/tmux.ts";
 
@@ -40,7 +40,7 @@ function open(): void {
     tmux.startServer(dash, process.cwd());
   } else {
     tmux.configureServer();
-    tmux.ensureDashWindow(dash, process.cwd());
+    tmux.ensureDashWindow(dash, process.cwd(), buildId());
   }
   tmux.selectDashboard();
   if (insideYmServer()) return;

@@ -100,14 +100,29 @@ export function configureServer(): void {
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
 }
 
-export function ensureDashWindow(dashCommand: string[], cwd: string): void {
+export const runningBuild = () => tmux(["show-option", "-gqv", "@ym_build"]).stdout.trim();
+export const recordBuild = (id: string) => void tmux(["set-option", "-g", "@ym_build", id]);
+
+/** Starts the dashboard UI if it's missing, dead, or running an older build. */
+export function ensureDashWindow(dashCommand: string[], cwd: string, build: string): void {
   const windows = tmux(["list-windows", "-t", `=${SESSION}`, "-F", "#{window_name}"]).stdout.split("\n");
   if (!windows.includes(DASH_WINDOW)) {
     must(["new-window", "-d", "-t", `${SESSION}:`, "-n", DASH_WINDOW, "-c", cwd, ...dashCommand]);
-  } else if (tmux(["display-message", "-p", "-t", UI_PANE, "#{pane_dead}"]).stdout.trim() === "1") {
-    must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...dashCommand]);
+  } else {
+    const dead = tmux(["display-message", "-p", "-t", UI_PANE, "#{pane_dead}"]).stdout.trim() === "1";
+    if (dead || runningBuild() !== build) must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...dashCommand]);
   }
+  adoptLegacyPanes();
   ensureDashLayout(cwd);
+}
+
+/** Agent windows from builds before pane tagging are named after their session id. */
+function adoptLegacyPanes(): void {
+  for (const p of listPanes()) {
+    if (!p.ymId && !p.placeholder && /^[a-f0-9]{8}$/.test(p.window)) {
+      tmux(["set-option", "-p", "-t", p.paneId, "@ym_id", p.window]);
+    }
+  }
 }
 
 /** The dashboard window always has a right pane: the shown agent or the placeholder. */

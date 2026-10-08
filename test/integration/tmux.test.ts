@@ -86,6 +86,21 @@ describe("tmux integration with a stub agent", () => {
     expect(dashPanes()).toHaveLength(2);
   }, 30000);
 
+  test("reopening restarts a dashboard from an older build and adopts untagged agent panes", () => {
+    const uiPid = () => tmux.tmux(["display-message", "-p", "-t", "ym:=dash.0", "#{pane_pid}"]).stdout.trim();
+    tmux.tmux(["new-window", "-d", "-t", "ym:", "-n", "abcdef12", "sleep", "600"]);
+    tmux.recordBuild("build-1");
+    const before = uiPid();
+
+    tmux.ensureDashWindow(["sleep", "600"], dir, "build-1");
+    expect(uiPid()).toBe(before);
+
+    tmux.ensureDashWindow(["sleep", "600"], dir, "build-2");
+    expect(uiPid()).not.toBe(before);
+    expect(tmux.listAgentPanes().has("abcdef12")).toBe(true);
+    tmux.tmux(["kill-window", "-t", "ym:=abcdef12"]);
+  });
+
   test("switching the shown session swaps panes back to their own windows", async () => {
     const a = await actions.startSession({ prompt: "a", folders: [dir] });
     const b = await actions.startSession({ prompt: "b", folders: [dir] });
