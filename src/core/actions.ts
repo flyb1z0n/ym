@@ -8,6 +8,7 @@ import { isStarting, START_TIMEOUT_MS } from "./status.ts";
 import { appendEvent, deleteSession, loadSession, newSessionId, saveSession } from "./store.ts";
 import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
 import type { PaneInfo, Session } from "./types.ts";
+import { removeWorktree } from "./worktree.ts";
 
 export interface NewSessionInput {
   prompt: string;
@@ -119,6 +120,7 @@ export function stopSession(pane: PaneInfo | undefined): void {
 
 export function removeSession(s: Session, pane: PaneInfo | undefined): void {
   stopSession(pane);
+  if (s.worktree) removeWorktree(s.cwd, s.worktree);
   deleteSession(s.id);
 }
 
