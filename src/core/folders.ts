@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { expandHome } from "./paths.ts";
+import { cursorHome, expandHome } from "./paths.ts";
 
 /** Roots whose subfolders are offered for @tags (YM_ROOTS, colon-separated; default ~/dev). */
 export function folderRoots(): string[] {
@@ -34,7 +34,10 @@ export function rootFolders(roots = folderRoots()): string[] {
 
 /** Ordered, de-duplicated candidates: recent session folders first, then chats, then roots. */
 export function buildFolderIndex(...groups: string[][]): string[] {
-  return [...new Set(groups.flat())];
+  const cursorWorktrees = join(cursorHome(), "worktrees");
+  const isCursorWorktree = (path: string) =>
+    path === cursorWorktrees || path.startsWith(`${cursorWorktrees}/`);
+  return [...new Set(groups.flat().filter((path) => !isCursorWorktree(path)))];
 }
 
 export interface TagToken {
