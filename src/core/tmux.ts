@@ -10,7 +10,7 @@ const UI_PANE = `${DASH}.0`;
 const PLACEHOLDER_CMD = [
   "sh",
   "-c",
-  'printf "\\n  Nothing running here.\\n  Select a running session, or press Enter on the left to start or resume one.\\n"; exec tail -f /dev/null',
+  'printf "\\n  Loading session preview...\\n  Select a running session, or press Enter on the left to start/resume one.\\n"; exec tail -f /dev/null',
 ];
 
 export interface RunResult {
