@@ -18,10 +18,10 @@ const folderLabel = (row: Row) =>
   folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
 
 export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false }: Props) {
-  const bodyHeight = height - 2;
+  const bodyHeight = height;
   if (groups.length === 0) {
     return (
-      <Box borderStyle="round" width={width} height={height} paddingX={1}>
+      <Box width={width} height={height} paddingX={1}>
         <Text dimColor>
           {tab === "sessions"
             ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a Cursor chat."
@@ -38,7 +38,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
   const selected = Math.max(0, items.findIndex((i) => i.kind === "row" && i.row.session.id === selectedId));
   const start = windowStart(items.length, selected, bodyHeight);
 
-  const inner = width - 4;
+  const inner = width - 2;
   const indent = mode === "date" ? 0 : 2;
   const statusWidth = mode === "status" ? 2 : 12;
   const ageWidth = 4;
@@ -46,7 +46,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
   const nameWidth = Math.max(4, inner - indent - statusWidth - (folderWidth ? folderWidth + 1 : 0) - ageWidth - 2);
 
   return (
-    <Box borderStyle="round" width={width} height={height} flexDirection="column" paddingX={1}>
+    <Box width={width} height={height} flexDirection="column" paddingX={1}>
       {items.slice(start, start + bodyHeight).map((item, i) => {
         if (item.kind === "header") {
           const { group } = item;
