@@ -3,7 +3,11 @@ import { GROUP_MODES, TABS, type GroupMode, type Row, type TabId } from "../core
 import type { Status } from "../core/types.ts";
 import { STATUS_STYLE, tildify } from "./format.ts";
 
-const LOGO = [" ▗▄▖ ", " ▐▓▌ ", " ▝▀▘ "];
+const LOGO = [
+  "        ╭──────────────╮",
+  " (^_^)7 ┤ Yes, Master! │",
+  "        ╰──────────────╯",
+];
 
 const SUMMARY: { status: Status; label: string }[] = [
   { status: "your_turn", label: "ready" },
@@ -43,7 +47,7 @@ export function Header({ model, folder, rows, tab, counts, group, dimmed = false
         </Box>
         <Box flexDirection="column">
           <Text bold dimColor={dimmed} wrap="truncate">
-            ym <Text dimColor>· {model ?? "Cursor"} · {tildify(folder)}</Text>
+            YesMaster <Text dimColor>· {model ?? "Cursor"} · {tildify(folder)}</Text>
           </Text>
           <Text dimColor={dimmed} wrap="truncate">
             {summary.map((s, i) => (
