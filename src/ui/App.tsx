@@ -271,28 +271,28 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       case "stop":
         return {
           title: "Stop session?",
-          message: "The running agent will be interrupted. You can resume it later.",
+          message: "You can resume it later.",
           confirmLabel: "Stop",
           tone: "warning" as const,
         };
       case "archive":
         return {
           title: "Archive session?",
-          message: "It will move to the Archived tab.",
+          message: "It moves to the Archived tab.",
           confirmLabel: "Archive",
           tone: "warning" as const,
         };
       case "unarchive":
         return {
           title: "Unarchive session?",
-          message: "It will move back to the Sessions tab.",
+          message: "It moves back to the Sessions tab.",
           confirmLabel: "Unarchive",
           tone: "warning" as const,
         };
       case "delete":
         return {
           title: "Delete from ym?",
-          message: "Tracking data and any running pane are removed. The Cursor chat is kept.",
+          message: "The Cursor chat is kept.",
           confirmLabel: "Delete",
           tone: "danger" as const,
         };
