@@ -1,5 +1,5 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { createChat, launchCommand } from "./cursor.ts";
+import { createChat, launchCommand, processingModel } from "./cursor.ts";
 import type { CursorChat } from "./importer.ts";
 import { isGitRepo, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
@@ -34,7 +34,7 @@ function agentLaunch(s: Session, prompt?: string): AgentLaunch {
     id: s.id,
     cwd: s.cwd,
     env: { YM_SESSION_ID: s.id },
-    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt, worktree: s.worktree }),
+    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt, worktree: s.worktree, model: processingModel() }),
   };
 }
 

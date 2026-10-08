@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { cursorHome } from "./paths.ts";
 
 export const AGENT_BIN = () => process.env.YM_AGENT_BIN ?? "agent";
+/** Model used for regular agent processing. Kept separate from worktree naming. */
+export const processingModel = () => process.env.YM_PROCESSING_MODEL;
 
 /** Display name of the CLI's default model, from ~/.cursor/cli-config.json. */
 export function defaultModelName(): string | undefined {
@@ -38,10 +40,12 @@ export interface LaunchOptions {
   addDirs?: string[];
   prompt?: string;
   worktree?: string;
+  model?: string;
 }
 
 export function launchCommand(o: LaunchOptions): string[] {
   const cmd = [AGENT_BIN(), "--resume", o.chatId, "--trust"];
+  if (o.model) cmd.push("--model", o.model);
   if (o.worktree) cmd.push("--worktree", o.worktree);
   for (const dir of o.addDirs ?? []) cmd.push("--add-dir", dir);
   // A leading dash would be parsed as a flag.
