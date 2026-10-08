@@ -96,9 +96,11 @@ export function configureServer(): void {
   must(["set-option", "-g", "status-right", ` ${DASH_KEY()}: back to list `]);
   must(["set-option", "-g", "status-left", " ym "]);
   must(["set-option", "-g", "pane-active-border-style", "fg=green"]);
-  // Greys out default-colored text in the unfocused pane; explicitly colored text keeps its color.
-  must(["set-option", "-g", "window-style", "fg=colour245"]);
-  must(["set-option", "-g", "window-active-style", "fg=default"]);
+  // dim= fades every colour in unfocused panes; older tmux lacks it and can only grey default-coloured text.
+  if (tmux(["set-option", "-g", "window-style", "dim=30"]).code !== 0) {
+    must(["set-option", "-g", "window-style", "fg=colour245"]);
+  }
+  must(["set-option", "-g", "window-active-style", "default"]);
   // Keep panes after exit so an agent's final output stays visible; status treats it as exited.
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
 }

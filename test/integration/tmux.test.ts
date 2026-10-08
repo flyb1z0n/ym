@@ -58,8 +58,8 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("inactive panes are dimmed", () => {
-    expect(tmux.tmux(["show-option", "-gv", "window-style"]).stdout.trim()).toBe("fg=colour245");
-    expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("fg=default");
+    expect(tmux.tmux(["show-option", "-gv", "window-style"]).stdout.trim()).toMatch(/^(dim=30|fg=colour245)$/);
+    expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("default");
   });
 
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
