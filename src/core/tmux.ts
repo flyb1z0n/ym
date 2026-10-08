@@ -103,6 +103,8 @@ export function configureServer(): void {
   must(["set-option", "-g", "window-active-style", "default"]);
   // Keep panes after exit so an agent's final output stays visible; status treats it as exited.
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
+  // Lets the dashboard reach the outer terminal (OSC 9 notifications) even when its window isn't shown; tmux < 3.3 lacks it.
+  tmux(["set-option", "-g", "allow-passthrough", "all"]);
 }
 
 export const runningBuild = () => tmux(["show-option", "-gqv", "@ym_build"]).stdout.trim();
