@@ -35,6 +35,7 @@ import { tildify } from "./format.ts";
 import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
+import { inputLineCount, promptHighlights } from "./promptText.ts";
 import { SessionList } from "./SessionList.tsx";
 import { SettingsView } from "./SettingsView.tsx";
 import { useDashboard } from "./useDashboard.ts";
@@ -54,6 +55,20 @@ type Flash = { text: string; error?: boolean } | undefined;
 const KEYS =
   "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
+const MAX_INPUT_LINES = 8;
+const MIN_LIST_HEIGHT = 3;
+/** Accent bar, its padding, and a spare last column so lines never hit the terminal edge. */
+const INPUT_CHROME = 3;
+const INPUT_BAR = {
+  topLeft: "",
+  top: "",
+  topRight: "",
+  right: "",
+  bottomRight: "",
+  bottom: "",
+  bottomLeft: "",
+  left: "▌",
+};
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
 
@@ -77,7 +92,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
   const [settings, setSettings] = useState(loadSettings);
   const [switchingSession, setSwitchingSession] = useState(false);
-  const previousSelection = useRef<string | undefined>();
+  const previousSelection = useRef<string | undefined>(undefined);
 
   const groups = useMemo(() => groupRows(filterRows(rows, tab), group), [rows, tab, group]);
   const visible = useMemo(() => flattenGroups(groups), [groups]);
@@ -289,9 +304,11 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     : suggestions.length
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
     : `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
-  const fixedLines =
-    HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
-  const listHeight = Math.max(3, termRows - fixedLines);
+  const inputWidth = Math.max(1, columns - INPUT_CHROME);
+  const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + 1 + linesFor(KEYS, columns);
+  const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
+  const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
+  const listHeight = Math.max(MIN_LIST_HEIGHT, termRows - fixedLines - inputLines);
   const modalOpen = mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight";
   const inputDimmed = modalOpen || switchingSession;
   const modalTarget =
@@ -374,18 +391,20 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         {flash?.text ?? " "}
       </Text>
       <Box
-        borderStyle="round"
+        borderStyle={INPUT_BAR}
+        borderTop={false}
+        borderRight={false}
+        borderBottom={false}
         borderColor="green"
         borderDimColor={inputDimmed}
-        paddingX={1}
+        paddingLeft={1}
         width={columns}
       >
-        <Box marginRight={1}>
-          <Text color="green" dimColor={inputDimmed}>›</Text>
-        </Box>
         <LineInput
           value={text}
-          width={columns - 7}
+          width={inputWidth}
+          maxLines={maxInputLines}
+          highlights={promptHighlights}
           placeholder="Ask Cursor… @folder to choose where, drop images to attach (Enter on empty opens the selected session)"
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
