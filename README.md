@@ -7,7 +7,7 @@ It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus o
 ## Features
 
 - Start and monitor many Cursor agent sessions from one TUI.
-- See session states (`working`, `ready`, `exited`, `imported`, etc.) in real time via Cursor hooks.
+- See session states (`working`, `ready`, `stopped`, `imported`, etc.) in real time via Cursor hooks.
 - Jump into a running session pane instantly, then return to the dashboard.
 - Launch prompts from the dashboard with `@folder` tags.
 - Import past Cursor chats and resume them.

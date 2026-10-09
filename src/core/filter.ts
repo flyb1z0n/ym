@@ -41,14 +41,14 @@ export interface Group {
   rows: Row[];
 }
 
-const STATUS_ORDER: Status[] = ["working", "error", "stale", "exited", "imported", "your_turn"];
+const STATUS_ORDER: Status[] = ["working", "error", "stale", "imported", "your_turn", "exited"];
 
 export const STATUS_GROUP_LABEL: Record<Status, string> = {
   your_turn: "Ready",
   error: "Error",
   working: "Working",
   stale: "Stale",
-  exited: "Exited",
+  exited: "Stopped",
   imported: "Imported",
 };
 
