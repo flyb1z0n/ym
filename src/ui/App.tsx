@@ -29,7 +29,7 @@ import { isGitRepo } from "../core/naming.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
-import { Header, HEADER_HEIGHT } from "./Header.tsx";
+import { Header, headerHeightFor } from "./Header.tsx";
 import { tildify } from "./format.ts";
 import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
@@ -280,7 +280,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
     : `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
   const fixedLines =
-    HEADER_HEIGHT + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
+    headerHeightFor(columns) + suggestions.length + 1 + 3 + 1 + linesFor(KEYS, columns);
   const listHeight = Math.max(3, termRows - fixedLines);
   const modalOpen = mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight";
   const inputDimmed = modalOpen || switchingSession;
@@ -346,7 +346,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <Header model={model} folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} />
+      <Header
+        model={model}
+        folder={lastCwd}
+        rows={rows}
+        tab={tab}
+        counts={counts}
+        group={group}
+        width={columns}
+        dimmed={modalOpen}
+      />
       <SessionList
         groups={groups}
         mode={group}

@@ -8,6 +8,8 @@ const LOGO = [
   " (^_^)7 ┤ Yes, Master! │",
   "        ╰──────────────╯",
 ];
+const COMPACT_LOGO = ["(^_^)7 ym"];
+const MIN_LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 
 const SUMMARY: { status: Status; label: string }[] = [
   { status: "your_turn", label: "ready" },
@@ -25,21 +27,25 @@ interface Props {
   tab: TabId;
   counts: Record<TabId, number>;
   group: GroupMode;
+  width: number;
   dimmed?: boolean;
 }
 
-export const HEADER_HEIGHT = LOGO.length + 1;
+export function headerHeightFor(width: number): number {
+  return (width < MIN_LOGO_WIDTH ? COMPACT_LOGO.length : LOGO.length) + 1;
+}
 
-export function Header({ model, folder, rows, tab, counts, group, dimmed = false }: Props) {
+export function Header({ model, folder, rows, tab, counts, group, width, dimmed = false }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
   );
+  const logo = width < MIN_LOGO_WIDTH ? COMPACT_LOGO : LOGO;
   return (
     <Box flexDirection="column">
       <Box>
         <Box flexDirection="column" marginRight={1}>
-          {LOGO.map((line, i) => (
+          {logo.map((line, i) => (
             <Text key={i} color="green" dimColor={dimmed}>
               {line}
             </Text>
