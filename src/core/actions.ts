@@ -1,12 +1,21 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { createChat, launchCommand, processingModel } from "./cursor.ts";
+import { createChat, launchCommand, processingModel, PROMPT_BAR } from "./cursor.ts";
+import { promptPastes, referencedImages, stripImageMarkers } from "./images.ts";
 import type { CursorChat } from "./importer.ts";
 import { isGitRepo, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
 import { appendEvent, deleteSession, loadSession, newSessionId, saveSession } from "./store.ts";
-import { killAgentPane, newAgentPane, respawnAgentPane, type AgentLaunch } from "./tmux.ts";
+import {
+  capturePane,
+  killAgentPane,
+  newAgentPane,
+  pasteText,
+  pressEnter,
+  respawnAgentPane,
+  type AgentLaunch,
+} from "./tmux.ts";
 import type { HighlightColor, PaneInfo, Session } from "./types.ts";
 import { removeWorktree } from "./worktree.ts";
 
@@ -14,7 +23,27 @@ export interface NewSessionInput {
   prompt: string;
   /** First folder is the workspace; the rest become --add-dir roots. */
   folders: string[];
+  /** Files behind the prompt's `[Image #N]` markers. */
+  images?: string[];
   name?: string;
+}
+
+const PROMPT_BAR_TIMEOUT_MS = 20_000;
+
+/** Cursor attaches images only when their paths are pasted into its prompt bar, not from the prompt argument. */
+async function submitWhenReady(paneId: string, pastes: string[]): Promise<void> {
+  const end = Date.now() + PROMPT_BAR_TIMEOUT_MS;
+  while (!PROMPT_BAR.test(capturePane(paneId))) {
+    if (Date.now() > end) throw new Error("Cursor didn't show its prompt in time, so the prompt wasn't sent.");
+    await Bun.sleep(200);
+  }
+  await Bun.sleep(300);
+  for (const text of pastes) {
+    pasteText(paneId, text);
+    await Bun.sleep(150);
+  }
+  await Bun.sleep(300);
+  pressEnter(paneId);
 }
 
 export function defaultName(prompt: string, id: string): string {
@@ -51,6 +80,8 @@ export async function startSession(
   const settings = loadSettings();
   const id = newSessionId();
   const prompt = input.prompt.trim();
+  const withImages = referencedImages(prompt, input.images ?? []).length > 0;
+  const namingPrompt = stripImageMarkers(prompt);
   const draft: Session = {
     id,
     name: input.name?.trim() || defaultName(prompt, id),
@@ -70,7 +101,7 @@ export async function startSession(
   try {
     [chatId, suggested] = await Promise.all([
       createChat(cwd),
-      useWorktree && settings.nameWorktrees && prompt ? suggestWorktreeName(prompt) : undefined,
+      useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined,
     ]);
   } catch (e) {
     deleteSession(id);
@@ -83,7 +114,8 @@ export async function startSession(
   if (suggested) session.worktree = uniqueWorktreeName(suggested, cwd);
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
-  newAgentPane(agentLaunch(session, prompt));
+  const paneId = newAgentPane(agentLaunch(session, withImages ? undefined : prompt));
+  if (withImages) await submitWhenReady(paneId, promptPastes(prompt, input.images ?? []));
   return session;
 }
 

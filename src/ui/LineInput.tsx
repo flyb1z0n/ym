@@ -1,10 +1,12 @@
-import { Text, useInput } from "ink";
+import { Text, useInput, usePaste } from "ink";
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   onSubmit?: (value: string) => void;
+  /** Rewrites pasted text (including drag-and-dropped file paths) before it's inserted. */
+  transformPaste?: (text: string) => string;
   placeholder?: string;
   focus?: boolean;
   /** Visible columns; longer values scroll to keep the cursor in view. */
@@ -12,7 +14,7 @@ interface Props {
 }
 
 /** Single-line input with readline-style editing keys. */
-export function LineInput({ value, onChange, onSubmit, placeholder = "", focus = true, width }: Props) {
+export function LineInput({ value, onChange, onSubmit, transformPaste, placeholder = "", focus = true, width }: Props) {
   const [cursor, setCursor] = useState(value.length);
   const previous = useRef(value);
 
@@ -48,6 +50,15 @@ export function LineInput({ value, onChange, onSubmit, placeholder = "", focus =
       if (key.ctrl || key.meta || !input) return;
       const text = input.replace(/[\r\n]+/g, " ");
       edit(value.slice(0, cursor) + text + value.slice(cursor), cursor + text.length);
+    },
+    { isActive: focus },
+  );
+
+  usePaste(
+    (pasted) => {
+      const text = (transformPaste?.(pasted) ?? pasted).replace(/[\r\n]+/g, " ");
+      onChange(value.slice(0, cursor) + text + value.slice(cursor));
+      setCursor(cursor + text.length);
     },
     { isActive: focus },
   );

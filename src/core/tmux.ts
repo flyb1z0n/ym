@@ -26,13 +26,16 @@ function cleanEnv(): Record<string, string | undefined> {
   return env;
 }
 
-export function tmux(args: string[]): RunResult {
-  const p = Bun.spawnSync(["tmux", "-L", SOCKET(), ...args], { env: cleanEnv() });
+export function tmux(args: string[], stdin?: string): RunResult {
+  const p = Bun.spawnSync(["tmux", "-L", SOCKET(), ...args], {
+    env: cleanEnv(),
+    stdin: stdin === undefined ? "ignore" : Buffer.from(stdin),
+  });
   return { code: p.exitCode ?? 1, stdout: p.stdout.toString(), stderr: p.stderr.toString() };
 }
 
-function must(args: string[]): string {
-  const r = tmux(args);
+function must(args: string[], stdin?: string): string {
+  const r = tmux(args, stdin);
   if (r.code !== 0) throw new Error(`tmux ${args[0]} failed: ${r.stderr.trim() || r.code}`);
   return r.stdout;
 }
@@ -248,6 +251,14 @@ export function sendLine(paneId: string, text: string): void {
   must(["send-keys", "-t", paneId, "-l", text]);
   must(["send-keys", "-t", paneId, "Enter"]);
 }
+
+/** Pastes text the way a terminal does: bracketed, if the pane asked for it. */
+export function pasteText(paneId: string, text: string): void {
+  must(["load-buffer", "-b", "ym-paste", "-"], text);
+  must(["paste-buffer", "-p", "-d", "-b", "ym-paste", "-t", paneId]);
+}
+
+export const pressEnter = (paneId: string) => void must(["send-keys", "-t", paneId, "Enter"]);
 
 export function capturePane(paneId: string): string {
   const r = tmux(["capture-pane", "-p", "-J", "-t", paneId]);
