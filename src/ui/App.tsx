@@ -12,7 +12,6 @@ import {
   toggleArchive,
 } from "../core/actions.ts";
 import type { HighlightColor } from "../core/types.ts";
-import { defaultModelName } from "../core/cursor.ts";
 import {
   filterRows,
   flattenGroups,
@@ -78,7 +77,6 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const { rows, panes, refresh } = useDashboard();
   const [tab, setTab] = useState<TabId>("sessions");
   const [group, setGroup] = useState<GroupMode>("status");
-  const [model] = useState(defaultModelName);
   const [selectedId, setSelectedId] = useState<string>();
   const [mode, setMode] = useState<Mode>({ kind: "main" });
   const [flash, setFlash] = useState<Flash>(
@@ -372,7 +370,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <Header model={model} folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} />
+      <Header folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} />
       <SessionList
         groups={groups}
         mode={group}
