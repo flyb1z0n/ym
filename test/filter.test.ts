@@ -46,6 +46,16 @@ describe("grouping", () => {
     expect(names(groups.at(-1)!.rows)).toEqual(["your_turn-2", "your_turn-1"]);
   });
 
+  test("by status: Working group is sorted by name, not recency", () => {
+    const working = (name: string, lastActivity: number): Row => {
+      const r = row("working", lastActivity);
+      r.session.name = name;
+      return r;
+    };
+    const groups = groupRows([working("beta", 9), working("Alpha", 1), working("task-10", 5), working("task-2", 7)], "status");
+    expect(names(groups[0]!.rows)).toEqual(["Alpha", "beta", "task-2", "task-10"]);
+  });
+
   test("by folder: folders ordered by their most recent session", () => {
     const groups = groupRows(active, "folder");
     expect(groups.map((g) => g.label)).toEqual(["/a", "/c", "/b"]);
