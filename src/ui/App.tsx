@@ -53,6 +53,7 @@ const KEYS =
 const FOLDER_REFRESH_MS = 30_000;
 const MAX_INPUT_LINES = 8;
 const MIN_LIST_HEIGHT = 3;
+const MIN_PROMPT_LENGTH = 4;
 /** Accent bar, its padding, and a spare last column so lines never hit the terminal edge. */
 const INPUT_CHROME = 3;
 const INPUT_BAR = {
@@ -201,7 +202,9 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   const submit = () => {
     if (suggestions.length) return acceptSuggestion();
-    if (text.trim()) return launch();
+    const typed = text.trim().length;
+    if (typed >= MIN_PROMPT_LENGTH) return launch();
+    if (typed) return say(`Type at least ${MIN_PROMPT_LENGTH} characters to start a session.`, true);
     openCurrent();
   };
 
