@@ -299,7 +299,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     ? errors.join(", ")
     : suggestions.length
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
-    : failure ?? `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
+    : failure ?? `in ${folders.map(tildify).join(" + ")}`;
   const targetIsError = errors.length > 0 || showFailure;
   const inputWidth = Math.max(1, columns - INPUT_CHROME);
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(KEYS, columns);
