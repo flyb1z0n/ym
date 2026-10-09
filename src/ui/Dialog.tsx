@@ -18,7 +18,7 @@ interface FrameProps {
 
 interface ConfirmProps {
   title: string;
-  message: string;
+  message?: string;
   subject: string;
   confirmLabel: string;
   width: number;
@@ -115,11 +115,13 @@ export function ConfirmDialog({
   });
 
   return (
-    <DialogFrame title={title} width={width} height={height} tone={tone} rows={4}>
+    <DialogFrame title={title} width={width} height={height} tone={tone} rows={message ? 4 : 3}>
       <Text wrap="truncate">{subject}</Text>
-      <Text dimColor wrap="truncate">
-        {message}
-      </Text>
+      {message && (
+        <Text dimColor wrap="truncate">
+          {message}
+        </Text>
+      )}
       <Text> </Text>
       <Box gap={2}>
         <Text inverse={choice === "confirm"} color={tone === "danger" ? "red" : "yellow"}>

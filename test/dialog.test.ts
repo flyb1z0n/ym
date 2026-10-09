@@ -24,8 +24,7 @@ describe("dialogBounds", () => {
 
   test("renders a centered confirmation with safe default selection", () => {
     const dialog = createElement(ConfirmDialog, {
-      title: "Delete from ym?",
-      message: "The Cursor chat is kept.",
+      title: "Delete session?",
       subject: "Test session",
       confirmLabel: "Delete",
       width: 80,
@@ -36,7 +35,7 @@ describe("dialogBounds", () => {
     });
     const output = renderToString(createElement(Box, { width: 80, height: 24 }, dialog));
 
-    expect(output).toContain("Delete from ym?");
+    expect(output).toContain("Delete session?");
     expect(output).toContain("Test session");
     expect(output).toContain("Delete");
     expect(output).toContain("Cancel");

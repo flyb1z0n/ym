@@ -324,8 +324,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         };
       case "delete":
         return {
-          title: "Delete from ym?",
-          message: "The Cursor chat is kept.",
+          title: "Delete session?",
           confirmLabel: "Delete",
           tone: "danger" as const,
         };
@@ -345,7 +344,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         say(`Stopped ${modalTarget.name}. Press Enter to resume it.`);
       } else if (action === "delete") {
         removeSession(modalTarget, panes.get(modalTarget.id));
-        say(`Deleted ${modalTarget.name}. The Cursor chat is untouched.`);
+        say(`Deleted ${modalTarget.name}.`);
       } else {
         const next = toggleArchive(modalTarget);
         say(next.archivedAt ? `Archived ${modalTarget.name}.` : `Unarchived ${modalTarget.name}.`);
