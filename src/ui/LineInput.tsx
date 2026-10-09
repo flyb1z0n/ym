@@ -1,5 +1,6 @@
-import { Text, useInput, usePaste } from "ink";
+import { Box, Text, useInput, usePaste } from "ink";
 import { useEffect, useRef, useState } from "react";
+import { wrapStarts, type Highlight } from "./promptText.ts";
 
 interface Props {
   value: string;
@@ -11,10 +12,24 @@ interface Props {
   focus?: boolean;
   /** Visible columns; longer values scroll to keep the cursor in view. */
   width?: number;
+  /** With `width`, wraps onto up to this many lines instead of scrolling sideways. */
+  maxLines?: number;
+  /** Colored ranges of the value. */
+  highlights?: (value: string) => Highlight[];
 }
 
-/** Single-line input with readline-style editing keys. */
-export function LineInput({ value, onChange, onSubmit, transformPaste, placeholder = "", focus = true, width }: Props) {
+/** Text input with readline-style editing keys. */
+export function LineInput({
+  value,
+  onChange,
+  onSubmit,
+  transformPaste,
+  placeholder = "",
+  focus = true,
+  width,
+  maxLines = 1,
+  highlights,
+}: Props) {
   const [cursor, setCursor] = useState(value.length);
   const previous = useRef(value);
 
@@ -75,6 +90,18 @@ export function LineInput({ value, onChange, onSubmit, transformPaste, placehold
       </Text>
     );
   }
+  if (width && maxLines > 1) {
+    return (
+      <WrappedText
+        value={value}
+        cursor={cursor}
+        active={focus}
+        width={width}
+        maxLines={maxLines}
+        highlights={highlights?.(value) ?? []}
+      />
+    );
+  }
   const start = width && value.length >= width ? Math.max(0, Math.min(cursor - width + 1, value.length - width + 1)) : 0;
   const end = width ? start + width : undefined;
   if (!focus) return <Text dimColor wrap="truncate">{value.slice(start, end)}</Text>;
@@ -84,5 +111,48 @@ export function LineInput({ value, onChange, onSubmit, transformPaste, placehold
       <Text inverse>{value[cursor] ?? " "}</Text>
       {value.slice(cursor + 1, end)}
     </Text>
+  );
+}
+
+interface WrappedProps {
+  value: string;
+  cursor: number;
+  active: boolean;
+  width: number;
+  maxLines: number;
+  highlights: Highlight[];
+}
+
+/** Word-wrapped value, scrolled so the cursor's line stays within `maxLines`. */
+function WrappedText({ value, cursor, active, width, maxLines, highlights }: WrappedProps) {
+  const text = `${value} `;
+  const colors: (string | undefined)[] = Array.from(text, () => undefined);
+  for (const h of highlights) colors.fill(h.color, h.start, h.end);
+  const starts = wrapStarts(text, width);
+  const cursorLine = starts.findLastIndex((s) => s <= cursor);
+  const first = Math.max(0, cursorLine - maxLines + 1);
+
+  return (
+    <Box flexDirection="column">
+      {starts.slice(first, first + maxLines).map((start, i) => {
+        const end = starts[first + i + 1] ?? text.length;
+        const runs: { text: string; color?: string; inverse: boolean }[] = [];
+        for (let at = start; at < end; at++) {
+          const inverse = active && at === cursor;
+          const last = runs.at(-1);
+          if (last && last.color === colors[at] && last.inverse === inverse) last.text += text[at];
+          else runs.push({ text: text[at]!, color: colors[at], inverse });
+        }
+        return (
+          <Text key={start} dimColor={!active} wrap="truncate">
+            {runs.map((run, j) => (
+              <Text key={j} color={run.color} inverse={run.inverse}>
+                {run.text}
+              </Text>
+            ))}
+          </Text>
+        );
+      })}
+    </Box>
   );
 }
