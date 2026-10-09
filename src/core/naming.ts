@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { AGENT_BIN } from "./cursor.ts";
@@ -27,11 +27,20 @@ export function slugify(text: string): string | undefined {
 
 /** Never throws: any failure or timeout returns undefined so the caller can fall back. */
 export async function suggestWorktreeName(prompt: string): Promise<string | undefined> {
+  // `agent --model` saves the model as the CLI's default in cli-config.json, which would make
+  // the session itself start on the naming model, so the naming run gets a throwaway config dir.
+  const configDir = mkdtempSync(join(tmpdir(), "ym-naming-"));
   try {
     // Runs outside the workspace so the agent has nothing to index or edit.
     const p = Bun.spawn(
       [AGENT_BIN(), "-p", "--trust", "--mode", "ask", "--model", namingModel(), "--output-format", "text", instruction(prompt)],
-      { cwd: tmpdir(), stdin: "ignore", stdout: "pipe", stderr: "ignore" },
+      {
+        cwd: tmpdir(),
+        env: { ...process.env, CURSOR_CONFIG_DIR: configDir },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "ignore",
+      },
     );
     const timer = setTimeout(() => p.kill(), NAMING_TIMEOUT_MS);
     const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
@@ -39,6 +48,8 @@ export async function suggestWorktreeName(prompt: string): Promise<string | unde
     return code === 0 ? slugify(out) : undefined;
   } catch {
     return undefined;
+  } finally {
+    rmSync(configDir, { recursive: true, force: true });
   }
 }
 
