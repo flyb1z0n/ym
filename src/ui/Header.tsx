@@ -2,7 +2,7 @@ import { Box, Text } from "ink";
 import { GROUP_MODES, TABS, type GroupMode, type Row, type TabId } from "../core/filter.ts";
 import type { Settings } from "../core/settings.ts";
 import type { Status } from "../core/types.ts";
-import { STATUS_STYLE, tildify } from "./format.ts";
+import { STATUS_STYLE } from "./format.ts";
 
 export const greeting = ({ callMeMain }: Pick<Settings, "callMeMain">) =>
   `Yes, ${callMeMain ? "Main" : "Master"}!`;
@@ -22,7 +22,6 @@ const SUMMARY: { status: Status; label: string }[] = [
 ];
 
 interface Props {
-  folder: string;
   rows: Row[];
   tab: TabId;
   counts: Record<TabId, number>;
@@ -33,7 +32,7 @@ interface Props {
 
 export const HEADER_HEIGHT = logo("").length + 1;
 
-export function Header({ folder, rows, tab, counts, group, dimmed = false, callMeMain = false }: Props) {
+export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = false }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
@@ -49,9 +48,6 @@ export function Header({ folder, rows, tab, counts, group, dimmed = false, callM
           ))}
         </Box>
         <Box flexDirection="column">
-          <Text dimColor wrap="truncate">
-            {tildify(folder)}
-          </Text>
           <Text dimColor={dimmed} wrap="truncate">
             {summary.map((s, i) => (
               <Text key={s.status}>
