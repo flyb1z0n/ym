@@ -24,9 +24,8 @@ import {
   type TabId,
 } from "../core/filter.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
-import { attachPastedImages, referencedImages, stripImageMarkers } from "../core/images.ts";
+import { attachPastedImages } from "../core/images.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
-import { isGitRepo } from "../core/naming.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
@@ -49,8 +48,6 @@ type Mode =
   | { kind: "confirm"; id: string; action: ConfirmAction }
   | { kind: "import"; chats: CursorChat[] }
   | { kind: "settings" };
-
-type Flash = { text: string; error?: boolean } | undefined;
 
 const KEYS =
   "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
@@ -81,8 +78,8 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [model] = useState(defaultModelName);
   const [selectedId, setSelectedId] = useState<string>();
   const [mode, setMode] = useState<Mode>({ kind: "main" });
-  const [flash, setFlash] = useState<Flash>(
-    hooksInstalled ? undefined : { text: "Status tracking is off: run `ym install`, then restart agents.", error: true },
+  const [failure, setFailure] = useState<string | undefined>(
+    hooksInstalled ? undefined : "Status tracking is off: run `ym install`, then restart agents.",
   );
   const [text, setText] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -123,14 +120,14 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   // The tag still being typed isn't an error while suggestions are offered for it.
   const errors = suggestions.length && tag ? parsed.errors.filter((e) => e !== `Unknown folder @${tag.query}`) : parsed.errors;
 
-  const say = (message: string, error = false) => setFlash({ text: message, error });
   const attempt = (fn: () => void): boolean => {
     try {
       fn();
+      setFailure(undefined);
       refresh();
       return true;
     } catch (e) {
-      say((e as Error).message, true);
+      setFailure((e as Error).message);
       refresh();
       return false;
     }
@@ -146,7 +143,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         else if (currentPane && current?.session.chatId) show(currentPane.paneId);
         else unshow();
       } catch (e) {
-        say((e as Error).message, true);
+        setFailure((e as Error).message);
       }
     }, 120);
     return () => clearTimeout(timer);
@@ -179,30 +176,22 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       const pane = listAgentPanes().get(session.id);
       if (pane) show(pane.paneId);
       focusRight();
-      setFlash(undefined);
     });
   };
 
   const launch = () => {
-    if (errors.length) return say(errors.join(", "), true);
+    if (errors.length) return;
     const input = { prompt: parsed.prompt, folders, images };
     setText("");
     setImages([]);
-    const naming =
-      settings.useWorktrees && settings.nameWorktrees && !!stripImageMarkers(input.prompt) && isGitRepo(folders[0]!);
-    const attached = referencedImages(input.prompt, images).length;
-    const withImages = attached ? ` with ${attached} image${attached === 1 ? "" : "s"}` : "";
-    say(
-      `${naming ? "Naming the worktree and starting" : "Starting"} Cursor in ${folders.map(tildify).join(" + ")}${withImages}…`,
-    );
+    setFailure(undefined);
     startSession(input, (s) => {
       setLastCwd(s.cwd);
       setTab("sessions");
       setSelectedId(s.id);
       refresh();
     })
-      .then((s) => say(`Started ${s.name}${s.worktree ? ` in worktree ${s.worktree}` : ""}. Press Enter to open it.`))
-      .catch((e: Error) => say(e.message, true))
+      .catch((e: Error) => setFailure(e.message))
       .finally(refresh);
   };
 
@@ -247,7 +236,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "l") return setMode({ kind: "highlight", id: session.id, color: session.highlightColor });
       if (input === "x") {
-        if (!isAlive(currentPane)) return say("Session isn't running.");
+        if (!isAlive(currentPane)) return setFailure("Session isn't running.");
         return setMode({ kind: "confirm", id: session.id, action: "stop" });
       }
       if (input === "a") {
@@ -273,7 +262,6 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           const s = importChat(chat);
           setMode({ ...mode, chats: mode.chats.filter((c) => c.chatId !== chat.chatId) });
           setSelectedId(s.id);
-          say(`Imported ${s.name}.`);
           refresh();
         }}
       />
@@ -291,7 +279,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
             saveSettings(next);
             setSettings(next);
           } catch (e) {
-            say((e as Error).message, true);
+            setFailure((e as Error).message);
           }
         }}
         onClose={() => setMode({ kind: "main" })}
@@ -299,13 +287,15 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     );
   }
 
+  const showFailure = !errors.length && !suggestions.length && !!failure;
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
-    : `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
+    : failure ?? `in ${folders.map(tildify).join(" + ")}${parsed.folders.length ? "" : "  (tag folders with @)"}`;
+  const targetIsError = errors.length > 0 || showFailure;
   const inputWidth = Math.max(1, columns - INPUT_CHROME);
-  const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + 1 + linesFor(KEYS, columns);
+  const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(KEYS, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
   const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
   const listHeight = Math.max(MIN_LIST_HEIGHT, termRows - fixedLines - inputLines);
@@ -352,20 +342,13 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     if (mode.kind !== "confirm") return;
     if (!modalTarget) {
       setMode({ kind: "main" });
-      return say("That session no longer exists.", true);
+      return setFailure("That session no longer exists.");
     }
     const { action } = mode;
     const succeeded = attempt(() => {
-      if (action === "stop") {
-        stopSession(panes.get(modalTarget.id));
-        say(`Stopped ${modalTarget.name}. Press Enter to resume it.`);
-      } else if (action === "delete") {
-        removeSession(modalTarget, panes.get(modalTarget.id));
-        setFlash(undefined);
-      } else {
-        const next = toggleArchive(modalTarget);
-        say(next.archivedAt ? `Archived ${modalTarget.name}.` : `Unarchived ${modalTarget.name}.`);
-      }
+      if (action === "stop") stopSession(panes.get(modalTarget.id));
+      else if (action === "delete") removeSession(modalTarget, panes.get(modalTarget.id));
+      else toggleArchive(modalTarget);
     });
     if (succeeded) setMode({ kind: "main" });
   };
@@ -387,9 +370,6 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           {`  @${tildify(path)}`}
         </Text>
       ))}
-      <Text color={flash?.error ? "red" : "green"} dimColor={inputDimmed} wrap="truncate">
-        {flash?.text ?? " "}
-      </Text>
       <Box
         borderStyle={INPUT_BAR}
         borderTop={false}
@@ -420,7 +400,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           onSubmit={submit}
         />
       </Box>
-      <Text color={errors.length ? "red" : undefined} dimColor={modalOpen || !errors.length} wrap="truncate">
+      <Text color={targetIsError ? "red" : undefined} dimColor={modalOpen || !targetIsError} wrap="truncate">
         {target}
       </Text>
       <Text dimColor={modalOpen || undefined}>{KEYS}</Text>
@@ -433,7 +413,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           onSave={() => {
             if (!modalTarget) {
               setMode({ kind: "main" });
-              return say("That session no longer exists.", true);
+              return setFailure("That session no longer exists.");
             }
             if (attempt(() => renameSession(modalTarget, mode.text))) setMode({ kind: "main" });
           }}
@@ -458,12 +438,9 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           onSave={(color) => {
             if (!modalTarget) {
               setMode({ kind: "main" });
-              return say("That session no longer exists.", true);
+              return setFailure("That session no longer exists.");
             }
-            if (attempt(() => setHighlightColor(modalTarget, color))) {
-              say(color ? `Updated highlight for ${modalTarget.name}.` : `Cleared highlight for ${modalTarget.name}.`);
-              setMode({ kind: "main" });
-            }
+            if (attempt(() => setHighlightColor(modalTarget, color))) setMode({ kind: "main" });
           }}
           onCancel={() => setMode({ kind: "main" })}
         />
