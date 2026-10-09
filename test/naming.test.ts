@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { isGitRepo, slugify, suggestWorktreeName, uniqueWorktreeName } from "../src/core/naming.ts";
 
@@ -80,6 +80,18 @@ describe("suggestWorktreeName", () => {
     process.env.YM_AGENT_BIN = fakeAgent("ok.sh", 'echo "Fix The Bug"; echo "${!#}" > "$(dirname "$0")/last-prompt"');
     expect(await suggestWorktreeName("the login page crashes")).toBe("fix-the-bug");
     expect(await Bun.file(join(dir, "last-prompt")).text()).toContain("the login page crashes");
+  });
+
+  test("runs the agent with a throwaway config dir so its model never becomes the CLI default", async () => {
+    process.env.YM_AGENT_BIN = fakeAgent(
+      "config.sh",
+      'echo "$CURSOR_CONFIG_DIR" > "$(dirname "$0")/config-dir"; [ -d "$CURSOR_CONFIG_DIR" ] && echo add-thing',
+    );
+    expect(await suggestWorktreeName("anything")).toBe("add-thing");
+    const configDir = (await Bun.file(join(dir, "config-dir")).text()).trim();
+    expect(configDir).not.toBe("");
+    expect(configDir).not.toBe(join(homedir(), ".cursor"));
+    expect(existsSync(configDir)).toBe(false);
   });
 
   test("returns undefined when the agent fails or is missing", async () => {
