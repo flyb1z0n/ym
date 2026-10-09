@@ -392,7 +392,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           width={inputWidth}
           maxLines={maxInputLines}
           highlights={promptHighlights}
-          placeholder="Ask Cursor… @folder to choose where, drop images to attach (Enter on empty opens the selected session)"
+          placeholder="Ask Cursor… (@ for folder)"
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);
