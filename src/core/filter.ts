@@ -53,6 +53,11 @@ export const STATUS_GROUP_LABEL: Record<Status, string> = {
 };
 
 const byRecent = (a: Row, b: Row) => b.lastActivity - a.lastActivity;
+const byName = (a: Row, b: Row) =>
+  a.session.name.localeCompare(b.session.name, undefined, { numeric: true, sensitivity: "base" });
+
+/** Working sessions emit events constantly, so recency order would reshuffle them on every tick. */
+const STATUS_SORT: Partial<Record<Status, (a: Row, b: Row) => number>> = { working: byName };
 
 export function groupRows(rows: Row[], mode: GroupMode): Group[] {
   if (mode === "date") return rows.length ? [{ key: "date", rows: [...rows].sort(byRecent) }] : [];
@@ -61,7 +66,7 @@ export function groupRows(rows: Row[], mode: GroupMode): Group[] {
       key: status,
       label: STATUS_GROUP_LABEL[status],
       status,
-      rows: rows.filter((r) => r.status === status).sort(byRecent),
+      rows: rows.filter((r) => r.status === status).sort(STATUS_SORT[status] ?? byRecent),
     })).filter((g) => g.rows.length);
   }
   const byFolder = new Map<string, Row[]>();
