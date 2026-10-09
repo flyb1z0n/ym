@@ -2,6 +2,7 @@ import { Box, Text, useInput } from "ink";
 import { useState } from "react";
 import { namingModel } from "../core/naming.ts";
 import type { Settings } from "../core/settings.ts";
+import { greeting } from "./Header.tsx";
 
 interface Props {
   settings: Settings;
@@ -35,6 +36,11 @@ const ROWS: Row[] = [
         ? `${namingModel()} names the worktree and branch before launch (adds ~8 s).`
         : "Worktrees and branches are named after the session id.";
     },
+  },
+  {
+    key: "callMeMain",
+    label: "Call me Main instead of Master",
+    describe: (s) => `The header says "${greeting(s)}"`,
   },
 ];
 

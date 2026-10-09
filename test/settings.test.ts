@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { settingsFile } from "../src/core/paths.ts";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../src/core/settings.ts";
+import { greeting } from "../src/ui/Header.tsx";
 
 let home: string;
 
@@ -20,19 +21,20 @@ afterEach(() => {
 describe("settings", () => {
   test("worktrees and worktree naming default to enabled", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ useWorktrees: true, nameWorktrees: true });
+    expect(DEFAULT_SETTINGS).toEqual({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
   });
 
   test("settings round-trip through config.json", () => {
-    saveSettings({ useWorktrees: false, nameWorktrees: false });
+    const settings = { useWorktrees: false, nameWorktrees: false, callMeMain: true };
+    saveSettings(settings);
 
-    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: false });
-    expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual({ useWorktrees: false, nameWorktrees: false });
+    expect(loadSettings()).toEqual(settings);
+    expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual(settings);
   });
 
   test("a config from before worktree naming keeps its value and gets the naming default", () => {
     writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false }));
-    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: true });
+    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: true, callMeMain: false });
   });
 
   test("malformed and incomplete config falls back to defaults", () => {
@@ -41,5 +43,10 @@ describe("settings", () => {
 
     writeFileSync(settingsFile(), "{}");
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
+
+  test("the header greets Master by default and Main when asked", () => {
+    expect(greeting({ callMeMain: false })).toBe("Yes, Master!");
+    expect(greeting({ callMeMain: true })).toBe("Yes, Main!");
   });
 });

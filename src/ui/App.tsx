@@ -359,7 +359,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <Header folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} />
+      <Header folder={lastCwd} rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} callMeMain={settings.callMeMain} />
       <SessionList
         groups={groups}
         mode={group}

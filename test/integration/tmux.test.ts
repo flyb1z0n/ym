@@ -166,7 +166,7 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ useWorktrees: false, nameWorktrees: true });
+    saveSettings({ useWorktrees: false, nameWorktrees: true, callMeMain: false });
     try {
       const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
       expect(s.worktree).toBeUndefined();
@@ -175,7 +175,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
       actions.stopSession(p);
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
     }
   }, 30000);
 
@@ -204,7 +204,7 @@ describe("tmux integration with a stub agent", () => {
     expect(empty.worktree).toBe(empty.id);
     actions.stopSession(pane(empty.id));
 
-    saveSettings({ useWorktrees: true, nameWorktrees: false });
+    saveSettings({ useWorktrees: true, nameWorktrees: false, callMeMain: false });
     try {
       const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
       expect(s.worktree).toBe(s.id);
@@ -212,7 +212,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
       actions.stopSession(pane(s.id));
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
     }
   }, 30000);
 });

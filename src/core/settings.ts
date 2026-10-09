@@ -5,11 +5,14 @@ export interface Settings {
   useWorktrees: boolean;
   /** Ask a small model to name the worktree after the prompt instead of using the session id. */
   nameWorktrees: boolean;
+  /** Greet the user as "Main" instead of "Master". */
+  callMeMain: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   useWorktrees: true,
   nameWorktrees: true,
+  callMeMain: false,
 };
 
 const flag = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
@@ -20,6 +23,7 @@ export function loadSettings(): Settings {
     return {
       useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
       nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
+      callMeMain: flag(value.callMeMain, DEFAULT_SETTINGS.callMeMain),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

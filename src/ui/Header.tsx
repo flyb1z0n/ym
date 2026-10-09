@@ -1,13 +1,16 @@
 import { Box, Text } from "ink";
 import { GROUP_MODES, TABS, type GroupMode, type Row, type TabId } from "../core/filter.ts";
+import type { Settings } from "../core/settings.ts";
 import type { Status } from "../core/types.ts";
 import { STATUS_STYLE, tildify } from "./format.ts";
 
-const LOGO = [
-  "╭──────────────╮",
-  "│ Yes, Master! │",
-  "╰──────────────╯",
-];
+export const greeting = ({ callMeMain }: Pick<Settings, "callMeMain">) =>
+  `Yes, ${callMeMain ? "Main" : "Master"}!`;
+
+const logo = (text: string) => {
+  const rule = "─".repeat(text.length + 2);
+  return [`╭${rule}╮`, `│ ${text} │`, `╰${rule}╯`];
+};
 
 const SUMMARY: { status: Status; label: string }[] = [
   { status: "your_turn", label: "ready" },
@@ -25,11 +28,12 @@ interface Props {
   counts: Record<TabId, number>;
   group: GroupMode;
   dimmed?: boolean;
+  callMeMain?: boolean;
 }
 
-export const HEADER_HEIGHT = LOGO.length + 1;
+export const HEADER_HEIGHT = logo("").length + 1;
 
-export function Header({ folder, rows, tab, counts, group, dimmed = false }: Props) {
+export function Header({ folder, rows, tab, counts, group, dimmed = false, callMeMain = false }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
@@ -38,7 +42,7 @@ export function Header({ folder, rows, tab, counts, group, dimmed = false }: Pro
     <Box flexDirection="column">
       <Box>
         <Box flexDirection="column" marginRight={1}>
-          {LOGO.map((line, i) => (
+          {logo(greeting({ callMeMain })).map((line, i) => (
             <Text key={i} color="green" dimColor={dimmed}>
               {line}
             </Text>
