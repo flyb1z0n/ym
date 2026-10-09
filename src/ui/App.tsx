@@ -27,7 +27,7 @@ import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag
 import { attachPastedImages } from "../core/images.ts";
 import { scanChats, type CursorChat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
-import { isAlive } from "../core/status.ts";
+import { isAlive, isStarting } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { tildify } from "./format.ts";
@@ -98,6 +98,12 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const index = foundIndex === -1 ? 0 : foundIndex;
   const current = visible[index];
   const currentPane = current ? panes.get(current.session.id) : undefined;
+  const loading =
+    current && isStarting(current.session) && current.status === "working"
+      ? current.session.worktree
+        ? "Preparing the worktree and starting Cursor…"
+        : "Starting Cursor…"
+      : "";
 
   useEffect(() => {
     const load = () =>
@@ -141,13 +147,13 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       try {
         if (mode.kind === "settings") unshow();
         else if (currentPane && current?.session.chatId) show(currentPane.paneId);
-        else unshow();
+        else unshow(loading);
       } catch (e) {
         setFailure((e as Error).message);
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [currentPane?.paneId, current?.session.chatId, mode.kind]);
+  }, [currentPane?.paneId, current?.session.chatId, mode.kind, loading]);
 
   useEffect(() => {
     const currentId = current?.session.id;

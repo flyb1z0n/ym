@@ -130,6 +130,17 @@ describe("tmux integration with a stub agent", () => {
     expect(dashPanes()).toHaveLength(2);
   }, 30000);
 
+  test("the placeholder spins while a session starts and goes back to the idle hint", async () => {
+    const placeholder = dashPanes()[1]!;
+    tmux.unshow("Starting Cursor…");
+    await Bun.sleep(400);
+    expect(tmux.capturePane(placeholder)).toMatch(/[✶✸✹✺✷] Starting Cursor…/);
+
+    tmux.unshow();
+    await Bun.sleep(200);
+    expect(tmux.capturePane(placeholder)).toContain("Nothing running here.");
+  });
+
   test("a new session is listed as working before its chat exists", async () => {
     let listed: string | undefined;
     const started = actions.startSession({ prompt: "early", folders: [dir] }, (draft) => {
