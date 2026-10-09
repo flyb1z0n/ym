@@ -1,6 +1,8 @@
 import { Box, Text } from "ink";
 import type { Group, GroupMode, Row, TabId } from "../core/filter.ts";
+import type { Status } from "../core/types.ts";
 import { age, fit, folder, STATUS_STYLE, tildify, windowStart } from "./format.ts";
+import { useSpinner } from "./useSpinner.ts";
 
 interface Props {
   groups: Group[];
@@ -18,6 +20,8 @@ const folderLabel = (row: Row) =>
   folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
 
 export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false }: Props) {
+  const spinner = useSpinner(groups.some((g) => g.rows.some((r) => r.status === "working")));
+  const icon = (status: Status) => (status === "working" ? spinner : STATUS_STYLE[status].icon);
   const bodyHeight = height;
   if (groups.length === 0) {
     return (
@@ -54,7 +58,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
           return (
             <Text key={`h-${group.key}`} dimColor={dimmed} wrap="truncate">
               <Text bold color={color}>
-                {group.status ? STATUS_STYLE[group.status].icon : "▸"} {mode === "folder" ? tildify(group.key) : group.label}
+                {group.status ? icon(group.status) : "▸"} {mode === "folder" ? tildify(group.key) : group.label}
               </Text>
               <Text dimColor> {group.rows.length}</Text>
             </Text>
@@ -73,7 +77,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
           >
             {" ".repeat(item.nested ? indent : 0)}
             <Text color={style.color}>
-              {fit(mode === "status" ? style.icon : `${style.icon} ${style.label}`, statusWidth)}
+              {fit(mode === "status" ? icon(row.status) : `${icon(row.status)} ${style.label}`, statusWidth)}
             </Text>
             <Text dimColor={row.session.archivedAt !== undefined}>{fit(row.session.name, nameWidth)}</Text>{" "}
             {folderWidth ? <Text dimColor>{`${fit(folderLabel(row), folderWidth)} `}</Text> : null}
