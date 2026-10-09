@@ -19,7 +19,6 @@ const SUMMARY: { status: Status; label: string }[] = [
 ];
 
 interface Props {
-  model: string | undefined;
   folder: string;
   rows: Row[];
   tab: TabId;
@@ -30,7 +29,7 @@ interface Props {
 
 export const HEADER_HEIGHT = LOGO.length + 1;
 
-export function Header({ model, folder, rows, tab, counts, group, dimmed = false }: Props) {
+export function Header({ folder, rows, tab, counts, group, dimmed = false }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
@@ -46,8 +45,8 @@ export function Header({ model, folder, rows, tab, counts, group, dimmed = false
           ))}
         </Box>
         <Box flexDirection="column">
-          <Text bold dimColor={dimmed} wrap="truncate">
-            YesMaster <Text dimColor>· {model ?? "Cursor"} · {tildify(folder)}</Text>
+          <Text dimColor wrap="truncate">
+            {tildify(folder)}
           </Text>
           <Text dimColor={dimmed} wrap="truncate">
             {summary.map((s, i) => (

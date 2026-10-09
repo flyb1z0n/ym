@@ -1,22 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { cursorHome } from "./paths.ts";
-
 export const AGENT_BIN = () => process.env.YM_AGENT_BIN ?? "agent";
 /** Model used for regular agent processing. Kept separate from worktree naming. */
 export const processingModel = () => process.env.YM_PROCESSING_MODEL;
-
-/** Display name of the CLI's default model, from ~/.cursor/cli-config.json. */
-export function defaultModelName(): string | undefined {
-  try {
-    const config = JSON.parse(readFileSync(join(cursorHome(), "cli-config.json"), "utf8")) as {
-      model?: { displayNameShort?: string; displayName?: string; modelId?: string };
-    };
-    return config.model?.displayNameShort ?? config.model?.displayName ?? config.model?.modelId;
-  } catch {
-    return undefined;
-  }
-}
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
