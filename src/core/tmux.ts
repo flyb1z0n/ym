@@ -7,11 +7,14 @@ export const DASH_KEY = () => process.env.YM_DASH_KEY ?? "C-g";
 
 const DASH = `${SESSION}:=${DASH_WINDOW}`;
 const UI_PANE = `${DASH}.0`;
-const PLACEHOLDER_CMD = [
-  "sh",
-  "-c",
-  'printf "\\n  Loading session preview...\\n  Select a running session, or press Enter on the left to start/resume one.\\n"; exec tail -f /dev/null',
-];
+const IDLE_SCRIPT =
+  'stty -echo 2>/dev/null; printf "\\n  Nothing running here.\\n  Select a running session, or press Enter on the left to start or resume one.\\n"; exec tail -f /dev/null';
+// Same frames and colour as the dashboard's working icon.
+const LOADING_SCRIPT =
+  "stty -echo 2>/dev/null; printf '\\033[?25l\\n'; while :; do for f in ✶ ✸ ✹ ✺ ✹ ✷; do printf '\\r  \\033[36m%s\\033[0m %s' \"$f\" \"$YM_LOADING\"; sleep 0.15; done; done";
+
+const placeholderCmd = (loading: string) =>
+  loading ? ["-e", `YM_LOADING=${loading}`, "sh", "-c", LOADING_SCRIPT] : ["sh", "-c", IDLE_SCRIPT];
 
 export interface RunResult {
   code: number;
@@ -144,14 +147,25 @@ export function ensureDashLayout(cwd: string): void {
   const dashPane = panes.find((p) => p.window === DASH_WINDOW);
   if (dashPane) {
     // Keep existing placeholder panes aligned with the latest placeholder text/behavior.
-    if (dashPane.placeholder) must(["respawn-pane", "-k", "-t", dashPane.paneId, "-c", cwd, ...PLACEHOLDER_CMD]);
+    if (dashPane.placeholder) respawnPlaceholder(dashPane.paneId, "");
     return;
   }
   for (const p of panes.filter((x) => x.placeholder)) tmux(["kill-pane", "-t", p.paneId]);
   const paneId = must([
-    "split-window", "-h", "-d", "-l", "60%", "-t", UI_PANE, "-c", cwd, "-P", "-F", "#{pane_id}", ...PLACEHOLDER_CMD,
+    "split-window", "-h", "-d", "-l", "60%", "-t", UI_PANE, "-c", cwd, "-P", "-F", "#{pane_id}", ...placeholderCmd(""),
   ]).trim();
   must(["set-option", "-p", "-t", paneId, "@ym_placeholder", "1"]);
+}
+
+function respawnPlaceholder(paneId: string, loading: string): void {
+  must(["respawn-pane", "-k", "-t", paneId, ...placeholderCmd(loading)]);
+  must(["set-option", "-p", "-t", paneId, "@ym_loading", loading]);
+}
+
+/** Shows a spinner with `loading`, or the idle hint when it's empty; respawns only when that changes. */
+function setPlaceholder(paneId: string, loading: string): void {
+  const current = tmux(["display-message", "-p", "-t", paneId, "#{@ym_loading}"]).stdout.trim();
+  if (current !== loading) respawnPlaceholder(paneId, loading);
 }
 
 const rightPane = () => listPanes().find((p) => p.window === DASH_WINDOW);
@@ -177,11 +191,13 @@ function lockParked(paneId: string): void {
 
 const placeholderPane = () => listPanes().find((p) => p.placeholder);
 
-/** Moves the shown agent back to its own window. */
-export function unshow(): void {
+/** Moves the shown agent back to its own window; the placeholder spins with `loading` if given. */
+export function unshow(loading = ""): void {
   const right = rightPane();
-  if (!right || right.placeholder) return;
   const placeholder = placeholderPane();
+  if (!right) return;
+  if (placeholder) setPlaceholder(placeholder.paneId, loading);
+  if (right.placeholder) return;
   if (placeholder) must(["swap-pane", "-d", "-s", placeholder.paneId, "-t", right.paneId]);
   lockParked(right.paneId);
 }
@@ -198,7 +214,10 @@ export function show(paneId: string): void {
     lockParked(right.paneId);
     return;
   }
-  if (right?.placeholder) must(["swap-pane", "-d", "-s", paneId, "-t", right.paneId]);
+  if (right?.placeholder) {
+    must(["swap-pane", "-d", "-s", paneId, "-t", right.paneId]);
+    setPlaceholder(right.paneId, "");
+  }
 }
 
 export function focusRight(): void {
