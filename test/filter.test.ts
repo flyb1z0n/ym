@@ -42,8 +42,8 @@ describe("grouping", () => {
 
   test("by status: groups in priority order, most recent first inside each", () => {
     const groups = groupRows(active, "status");
-    expect(groups.map((g) => g.label)).toEqual(["Working", "Error", "Stale", "Exited", "Imported", "Ready"]);
-    expect(names(groups.at(-1)!.rows)).toEqual(["your_turn-2", "your_turn-1"]);
+    expect(groups.map((g) => g.label)).toEqual(["Working", "Error", "Stale", "Imported", "Ready", "Stopped"]);
+    expect(names(groups.at(-2)!.rows)).toEqual(["your_turn-2", "your_turn-1"]);
   });
 
   test("by status: Working group is sorted by name, not recency", () => {

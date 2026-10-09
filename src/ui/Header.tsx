@@ -17,8 +17,8 @@ const SUMMARY: { status: Status; label: string }[] = [
   { status: "working", label: "working" },
   { status: "error", label: "error" },
   { status: "stale", label: "stale" },
-  { status: "exited", label: "exited" },
   { status: "imported", label: "imported" },
+  { status: "exited", label: "stopped" },
 ];
 
 interface Props {

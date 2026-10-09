@@ -7,7 +7,7 @@ export const STATUS_STYLE: Record<Status, { icon: string; label: string; color: 
   error: { icon: "!", label: "error", color: "red" },
   working: { icon: "◐", label: "working", color: "cyan" },
   stale: { icon: "◌", label: "stale?", color: "magenta" },
-  exited: { icon: "○", label: "exited", color: "gray" },
+  exited: { icon: "○", label: "stopped", color: "gray" },
   imported: { icon: "↓", label: "imported", color: "blue" },
 };
 
