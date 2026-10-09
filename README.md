@@ -86,4 +86,4 @@ bun test
 
 ## Name
 
-`ym` currently expands to **YesMaster**.
+`ym` currently expands to **YesMaster**. Prefer "Yes, Main!"? Turn on "Call me Main instead of Master" in settings (`Ctrl-s`).
