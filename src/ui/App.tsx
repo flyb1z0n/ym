@@ -361,7 +361,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         say(`Stopped ${modalTarget.name}. Press Enter to resume it.`);
       } else if (action === "delete") {
         removeSession(modalTarget, panes.get(modalTarget.id));
-        say(`Deleted ${modalTarget.name}.`);
+        setFlash(undefined);
       } else {
         const next = toggleArchive(modalTarget);
         say(next.archivedAt ? `Archived ${modalTarget.name}.` : `Unarchived ${modalTarget.name}.`);
