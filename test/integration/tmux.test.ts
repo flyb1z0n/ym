@@ -158,7 +158,7 @@ describe("tmux integration with a stub agent", () => {
     let id = "";
     const started = actions.startSession({ prompt: "gone", folders: [dir] }, (draft) => {
       id = draft.id;
-      actions.removeSession(draft, undefined);
+      void actions.removeSession(draft, undefined);
     });
     await expect(started).rejects.toThrow("removed before Cursor started");
     expect(pane(id)).toBeUndefined();
