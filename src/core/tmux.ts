@@ -143,6 +143,8 @@ function adoptLegacyPanes(): void {
 
 /** The dashboard window always has a right pane: the shown agent or the placeholder. */
 export function ensureDashLayout(cwd: string): void {
+  // The dashboard must follow the terminal size; older builds could leave it locked to a preview size.
+  tmux(["set-option", "-wu", "-t", DASH, "window-size"]);
   const panes = listPanes();
   const dashPane = panes.find((p) => p.window === DASH_WINDOW);
   if (dashPane) {
@@ -185,8 +187,13 @@ function previewSize(): { width: number; height: number } | undefined {
 function lockParked(paneId: string): void {
   const size = previewSize();
   if (!size) return;
-  tmux(["set-option", "-w", "-t", paneId, "window-size", "manual"]);
-  tmux(["resize-window", "-t", paneId, "-x", String(size.width), "-y", String(size.height)]);
+  // Target the window by id: the pane may be swapped onto the dashboard meanwhile, which must never be locked.
+  const [windowId = "", window] = tmux(["display-message", "-p", "-t", paneId, "#{window_id}\t#{window_name}"])
+    .stdout.trim()
+    .split("\t");
+  if (!windowId || window === DASH_WINDOW) return;
+  tmux(["set-option", "-w", "-t", windowId, "window-size", "manual"]);
+  tmux(["resize-window", "-t", windowId, "-x", String(size.width), "-y", String(size.height)]);
 }
 
 const placeholderPane = () => listPanes().find((p) => p.placeholder);

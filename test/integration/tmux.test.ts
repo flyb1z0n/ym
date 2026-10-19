@@ -215,4 +215,23 @@ describe("tmux integration with a stub agent", () => {
       saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
     }
   }, 30000);
+
+  test("the dashboard window is never locked to a fixed size", async () => {
+    const dashSize = () => tmux.tmux(["show-options", "-wqv", "-t", "ym:=dash", "window-size"]).stdout.trim();
+    const s = await actions.startSession({ prompt: "locked", folders: [dir] });
+    await waitFor(s.id, "your_turn");
+    const placeholder = dashPanes()[1]!;
+    tmux.show(pane(s.id)!.paneId);
+    tmux.tmux(["kill-pane", "-t", placeholder]);
+    tmux.unshow();
+    expect(dashSize()).toBe("");
+
+    tmux.tmux(["resize-window", "-t", "ym:=dash", "-x", "40", "-y", "20"]);
+    expect(dashSize()).toBe("manual");
+    tmux.ensureDashWindow(["sleep", "600"], dir, tmux.runningBuild());
+    expect(dashSize()).toBe("");
+    actions.stopSession(pane(s.id));
+    tmux.ensureDashLayout(dir);
+    expect(dashPanes()).toHaveLength(2);
+  }, 30000);
 });
