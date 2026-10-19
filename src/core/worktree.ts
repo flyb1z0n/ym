@@ -71,12 +71,20 @@ export function listWorktrees(cwd: string): GitWorktree[] {
   return parseWorktreeList(res.stdout);
 }
 
+/** Deletes the folder, reporting whether it's actually gone. */
+async function removeDir(path: string): Promise<boolean> {
+  await rm(path, { recursive: true, force: true }).catch(() => {});
+  return !existsSync(path);
+}
+
 /**
  * Removes the git worktree and its branch, plus any cursor worktree folder on disk.
  * Async because worktrees can hold large trees (node_modules) that would freeze the UI if deleted synchronously.
+ * Throws if a worktree folder is still on disk afterwards.
  */
 export async function removeWorktree(cwd: string, worktreeName: string): Promise<void> {
   if (!worktreeName) return;
+  const leftovers: string[] = [];
 
   if (existsSync(cwd)) {
     const list = await gitAsync(cwd, ["worktree", "list", "--porcelain"]);
@@ -92,7 +100,7 @@ export async function removeWorktree(cwd: string, worktreeName: string): Promise
     if (target) {
       await gitAsync(cwd, ["worktree", "remove", "--force", target.path]);
       if (target.branch) await gitAsync(cwd, ["branch", "-D", target.branch]);
-      await rm(target.path, { recursive: true, force: true }).catch(() => {});
+      if (!(await removeDir(target.path))) leftovers.push(target.path);
     } else {
       // Branch might still exist even if worktree was pruned/unlinked
       await gitAsync(cwd, ["branch", "-D", worktreeName]);
@@ -103,14 +111,12 @@ export async function removeWorktree(cwd: string, worktreeName: string): Promise
   // Check Cursor's worktree storage directory (~/.cursor/worktrees/*/<worktreeName>)
   const cursorWtRoot = join(cursorHome(), "worktrees");
   if (existsSync(cursorWtRoot)) {
-    try {
-      for (const repoDir of readdirSync(cursorWtRoot, { withFileTypes: true })) {
-        if (!repoDir.isDirectory()) continue;
-        const wtPath = join(cursorWtRoot, repoDir.name, worktreeName);
-        if (existsSync(wtPath)) await rm(wtPath, { recursive: true, force: true });
-      }
-    } catch {
-      // best-effort cleanup
+    for (const repoDir of readdirSync(cursorWtRoot, { withFileTypes: true })) {
+      if (!repoDir.isDirectory()) continue;
+      const wtPath = join(cursorWtRoot, repoDir.name, worktreeName);
+      if (existsSync(wtPath) && !leftovers.includes(wtPath) && !(await removeDir(wtPath))) leftovers.push(wtPath);
     }
   }
+
+  if (leftovers.length) throw new Error(`Couldn't remove worktree: ${leftovers.join(", ")}`);
 }

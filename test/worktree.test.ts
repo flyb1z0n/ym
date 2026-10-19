@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { removeSession } from "../src/core/actions.ts";
@@ -144,5 +144,34 @@ describe("worktree management", () => {
 
     expect(existsSync(wtDir)).toBe(false);
     expect(listWorktrees(repoDir).some((w) => w.branch === "sess1234")).toBe(false);
+  });
+
+  test("removeSession restores the session when its worktree can't be removed", async () => {
+    const parent = join(cursorDir, "worktrees", "repo");
+    const wtDir = join(parent, "stuck123");
+    Bun.spawnSync(["git", "worktree", "add", "-b", "stuck123", wtDir], { cwd: repoDir });
+    writeFileSync(join(wtDir, "file.txt"), "x");
+
+    const session: Session = {
+      id: "stuck123",
+      name: "Stuck Session",
+      cwd: repoDir,
+      chatId: "chat-456",
+      source: "ym",
+      createdAt: Date.now(),
+      worktree: "stuck123",
+    };
+    saveSession(session);
+
+    chmodSync(parent, 0o555);
+    try {
+      const cleanup = removeSession(session, undefined);
+      expect(loadSession("stuck123")).toBeUndefined();
+      await expect(cleanup).rejects.toThrow("Couldn't remove worktree");
+      expect(loadSession("stuck123")).toEqual(session);
+      expect(existsSync(wtDir)).toBe(true);
+    } finally {
+      chmodSync(parent, 0o755);
+    }
   });
 });

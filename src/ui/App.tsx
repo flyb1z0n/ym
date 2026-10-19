@@ -356,7 +356,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       setMode({ kind: "main" });
       setFailure(undefined);
       removeSession(modalTarget, panes.get(modalTarget.id))
-        .catch((e: Error) => setFailure(e.message))
+        .catch((e: Error) => setFailure(`Session kept. ${e.message}`))
         .finally(refresh);
       return refresh();
     }
