@@ -49,7 +49,7 @@ type Mode =
   | { kind: "settings" };
 
 const KEYS =
-  "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^X stop · ^A archive · ^D delete · ^O import · ^G back here";
+  "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 const MAX_INPUT_LINES = 8;
 const MIN_LIST_HEIGHT = 3;
@@ -242,7 +242,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       const { session } = current;
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "l") return setMode({ kind: "highlight", id: session.id, color: session.highlightColor });
-      if (input === "x") {
+      if (input === "d") {
         if (!isAlive(currentPane)) return setFailure("Session isn't running.");
         return setMode({ kind: "confirm", id: session.id, action: "stop" });
       }
@@ -253,7 +253,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           action: session.archivedAt === undefined ? "archive" : "unarchive",
         });
       }
-      if (input === "d") return setMode({ kind: "confirm", id: session.id, action: "delete" });
+      if (input === "x") return setMode({ kind: "confirm", id: session.id, action: "delete" });
     },
     { isActive: mode.kind === "main" },
   );
