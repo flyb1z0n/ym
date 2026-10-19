@@ -1,3 +1,5 @@
+import { isAgent } from "../core/agents.ts";
+
 export interface Highlight {
   start: number;
   end: number;
@@ -5,20 +7,24 @@ export interface Highlight {
 }
 
 const FOLDER_TAG = /(^|\s)(@\S+)/g;
+const AGENT_TAG = /(^|\s)(#\S+)/g;
 const IMAGE_MARKER = /\[Image #\d+\]/g;
 
-/** Colors for `@folder` tags and `[Image #N]` markers; markers win where they overlap. */
+/** Colors for `@folder` and `#agent` tags and `[Image #N]` markers; markers win where they overlap. */
 export function promptHighlights(text: string): Highlight[] {
-  const folders = [...text.matchAll(FOLDER_TAG)].map((m) => {
-    const start = m.index + m[1]!.length;
-    return { start, end: start + m[2]!.length, color: "cyan" };
-  });
+  const tags = (re: RegExp, color: string, keep: (tag: string) => boolean = () => true) =>
+    [...text.matchAll(re)]
+      .filter((m) => keep(m[2]!))
+      .map((m) => {
+        const start = m.index + m[1]!.length;
+        return { start, end: start + m[2]!.length, color };
+      });
   const images = [...text.matchAll(IMAGE_MARKER)].map((m) => ({
     start: m.index,
     end: m.index + m[0].length,
     color: "magenta",
   }));
-  return [...folders, ...images];
+  return [...tags(FOLDER_TAG, "cyan"), ...tags(AGENT_TAG, "yellow", (t) => isAgent(t.slice(1).toLowerCase())), ...images];
 }
 
 /** Start index of each visual line, breaking after spaces when a word would overflow `width`. */

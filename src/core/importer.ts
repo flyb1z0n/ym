@@ -1,9 +1,12 @@
 import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cursorHome } from "./paths.ts";
+import { codexTitles, scanCodexSessions } from "./codex.ts";
+import { codexHome, cursorHome } from "./paths.ts";
+import type { Agent } from "./types.ts";
 
-export interface CursorChat {
+export interface Chat {
+  agent: Agent;
   chatId: string;
   cwd: string;
   title: string;
@@ -49,9 +52,9 @@ function firstPrompt(dir: string): string | undefined {
   return Array.isArray(history) && typeof history[0] === "string" ? history[0] : undefined;
 }
 
-export function scanChats(root = join(cursorHome(), "chats")): CursorChat[] {
+export function scanChats(root = join(cursorHome(), "chats")): Chat[] {
   if (!existsSync(root)) return [];
-  const chats: CursorChat[] = [];
+  const chats: Chat[] = [];
   for (const hash of readdirSync(root)) {
     const hashDir = join(root, hash);
     let entries: string[];
@@ -67,6 +70,7 @@ export function scanChats(root = join(cursorHome(), "chats")): CursorChat[] {
       const title =
         meta.title || titleFromStore(join(dir, "store.db")) || firstPrompt(dir) || "(untitled)";
       chats.push({
+        agent: "cursor",
         chatId,
         cwd: meta.cwd,
         title,
@@ -77,3 +81,22 @@ export function scanChats(root = join(cursorHome(), "chats")): CursorChat[] {
   }
   return chats.sort((a, b) => b.updatedAt - a.updatedAt);
 }
+
+/** Interactive Codex sessions, titled by Codex's thread names. */
+export function scanCodexChats(home = codexHome()): Chat[] {
+  const titles = codexTitles(home);
+  return scanCodexSessions(home)
+    .filter((s) => s.interactive)
+    .map(({ chatId, cwd, createdAt, updatedAt }) => ({
+      agent: "codex" as const,
+      chatId,
+      cwd,
+      title: titles.get(chatId) ?? "(untitled)",
+      createdAt,
+      updatedAt,
+    }));
+}
+
+/** Every importable chat across agents, newest first. */
+export const scanAllChats = (): Chat[] =>
+  [...scanChats(), ...scanCodexChats()].sort((a, b) => b.updatedAt - a.updatedAt);

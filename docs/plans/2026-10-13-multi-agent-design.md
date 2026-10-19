@@ -1,6 +1,7 @@
 # ym — multi-agent support (Cursor + Codex)
 
-Status: approved design. Date: 2026-10-13.
+Status: implemented. Date: 2026-10-13, updated 2026-10-19 with what
+implementation against Codex CLI 0.159.3 changed.
 
 ## Goal
 
@@ -16,25 +17,26 @@ default; a `#codex` tag in the prompt switches a single session to Codex.
 | Default | `defaultAgent` in `settings.json`, cycled in Ctrl-s; defaults to `cursor` |
 | Status source | Each agent's own hooks, normalized to ym's existing event names |
 | Codex hook trust | User trusts ym's hooks once in Codex; ym warns when a Codex session reports nothing |
+| Codex folder trust | `ym install` trusts `~/.ym/worktrees` once in `~/.codex/config.toml` |
 | Import | Past Codex sessions appear in the import picker next to Cursor chats |
 
 ## Architecture
 
-### Agent drivers
+### Agents
 
 `Session` gains `agent: "cursor" | "codex"`. Sessions without the field load as
 `cursor`, so existing state needs no migration.
 
-`src/core/agents/` holds one driver per agent behind a small interface:
+The two start flows differ too much for a shared driver interface to pay off, so
+each agent keeps a small module and callers branch on `agentOf(session)`:
 
-- `bin()` / `available()`: binary lookup (`YM_AGENT_BIN`, `YM_CODEX_BIN`).
-- `launchCommand(opts)` / `resumeCommand(session)`.
-- `installHooks(self)` / `uninstallHooks()` / `hooksInstalled(self)`.
-- `scanChats()`: past sessions for the import picker.
+- `src/core/agents.ts`: the agent list, display names, `agentAvailable()`.
+- `src/core/cursor.ts`: unchanged.
+- `src/core/codex.ts`: launch/resume argv, rollout scanning (`YM_CODEX_BIN`,
+  `YM_CODEX_MODEL`, `YM_CODEX_HOME`).
 
-`cursor.ts` is today's `src/core/cursor.ts` moved behind the interface.
-`actions.ts`, `install.ts` and the import picker dispatch on `session.agent`
-instead of importing Cursor code directly.
+`Session` also gains `launchedAt`: Codex sessions run before their chat id is
+known, so "starting" becomes "no chat id and never launched".
 
 ### Prompt tag
 
@@ -58,19 +60,39 @@ instead of importing Cursor code directly.
 
 Codex has no `create-chat`, so the chat id isn't known before launch.
 
-1. Save the session with an empty `chatId` (the existing "starting" state).
-2. New pane: `codex -C <cwd> [--add-dir …] [-m <model>] "<prompt>"` with
-   `YM_SESSION_ID` in the environment. A leading `-` in the prompt is guarded
-   the same way as for Cursor.
-3. The `SessionStart` hook writes the payload's `session_id` into the session's
-   `chatId`.
-4. Fallback if no hook arrives before `START_TIMEOUT_MS`: scan
-   `~/.codex/sessions/**/rollout-*.jsonl` for a `session_meta` with matching `cwd`
-   and a timestamp after launch.
+1. Save the session with an empty `chatId` (the existing "starting" state), and
+   name the worktree if enabled.
+2. Set `launchedAt` and open a pane:
+   `codex -C <dir> [-m <model>] [--add-dir …] [--image=…] -- "<prompt>"` with
+   `YM_SESSION_ID` in the environment. `--` keeps prompts starting with `-` or
+   named like a subcommand (`review`) as prompts.
+3. The dashboard shows the pane right away, so Codex's own first-run screens
+   (hook review, folder trust) are visible and answerable.
+4. The `SessionStart` hook writes the payload's `session_id` into `chatId`; any
+   later hook does too while it's still empty (hooks trusted mid-session).
+5. If a Codex session is resumed without a `chatId` (hooks never ran), scan
+   `~/.codex/sessions/**/rollout-*.jsonl` for an interactive session with the
+   same `cwd` created since launch.
 
 ### Resume
 
-`codex resume <chatId> -C <cwd> [--add-dir …]`.
+`codex resume <chatId> -C <dir> [--add-dir …]`.
+
+### Folder trust
+
+Codex asks to trust every new folder, which would stop each fresh worktree. A
+per-run `-c projects=…` override avoids that but makes Codex skip its shared
+background server (verified on 0.159.3), so instead `ym install` appends one
+entry to `~/.codex/config.toml`:
+
+```toml
+[projects."/Users/me/.ym/worktrees"]
+trust_level = "trusted"
+```
+
+Codex applies it to subfolders. It's skipped when the user already has an entry
+for that folder, and `ym uninstall` removes only that block. Sessions outside
+ym worktrees get Codex's normal trust prompt, once per folder.
 
 ### Worktrees
 
@@ -89,48 +111,56 @@ is absent), using Codex's nested shape:
 { "hooks": { "Stop": [{ "hooks": [{ "type": "command", "command": "ym hook Stop codex", "timeout": 5 }] }] } }
 ```
 
-The hook maps Codex events onto ym's existing names so `status.ts` is unchanged:
+Hook processes inherit the pane environment, so `YM_SESSION_ID` arrives as with
+Cursor. Codex hooks print nothing (Codex reads empty output as "continue").
+The hook maps Codex events onto ym's existing names:
 
 | Codex event | Recorded as |
 |---|---|
-| `SessionStart` | sets `chatId`; no status change |
+| `SessionStart` | `sessionStart`: sets `chatId`, no status change |
 | `UserPromptSubmit` | `beforeSubmitPrompt` (working) |
 | `PreToolUse`, `PostToolUse` | `preToolUse` / `postToolUse` (working) |
-| `SubagentStart`, `SubagentStop` | `subagentStart` / `subagentStop` (working) |
-| `PermissionRequest` | `stop` completed (your turn) |
+| `PermissionRequest` | `permissionRequest` (your turn; new in `status.ts`) |
 | `Stop` | `stop` completed |
-| `SessionEnd` | `sessionEnd` |
+| `SessionEnd` (3 s timeout cap) | `sessionEnd` |
 
 Subagent hooks carry the parent `session_id`, and `SessionEnd` doesn't fire for
 subagents, so the Cursor subagent guard isn't needed for Codex.
 
-Codex only runs user hooks after the user trusts them (by hash, via `/hooks` or
-the startup prompt). ym doesn't bypass this.
+Codex only runs user hooks after the user trusts them (by hash, recorded under
+`[hooks.state]` in `config.toml`), via its startup "Hooks need review" screen or
+`/hooks`. ym doesn't bypass this; while a live Codex session has reported no id
+for 20 s, the dashboard says to trust ym's hooks.
 
 ### Import
 
-Read `~/.codex/session_index.jsonl` (`id`, `thread_name`, `updated_at`), take
-`cwd` from the first line of each rollout file, and merge with Cursor chats in
-the picker, labelled by agent.
+Rollout files are the source of truth: `session_id`, `cwd`, `timestamp` and
+`originator` come from the first 16 KB of each (the `session_meta` line can be
+too long to read whole), `codex exec` runs are skipped, and titles come from
+`~/.codex/session_index.jsonl` (`thread_name`). The picker merges them with
+Cursor chats, labelled by agent.
 
 ## Error handling
 
-- `#codex` without `codex` on PATH: "Codex CLI not found"; the prompt stays in
-  the input, like an unknown `@folder`.
-- No events from a live Codex session: show "Codex hooks not trusted — run
-  /hooks in Codex"; status falls back to pane liveness.
-- Hook script keeps failing open: always exits 0 with `{}`.
-- Install/uninstall back up each hooks file to `.ym-bak` before writing.
+- `#codex` without `codex` on PATH: "Codex CLI `codex` not found on PATH"; the
+  prompt stays in the input, like an unknown `@folder`.
+- No id from a live Codex session after 20 s: hint to trust ym's hooks.
+- Resuming a Codex session with no id and no matching rollout: an error asking
+  to start a new one.
+- Hook script keeps failing open: always exits 0.
+- Install/uninstall back up each file they change to `.ym-bak`.
 
 ## Testing
 
 - `parsePrompt`: known/unknown/duplicate agent tags, mixed with `@folders`.
 - Codex launch and resume argv.
-- Codex event → ym event mapping, including `SessionStart` setting `chatId`.
-- Codex hooks install merge/strip against a temp home.
-- Codex session scan from fixture `session_index.jsonl` + rollout files.
-- Settings: `defaultAgent` falls back to `cursor`; sessions without `agent` load
-  as Cursor.
+- Codex event → status, including `permissionRequest`.
+- Codex hooks and folder-trust install/uninstall against a temp home.
+- Codex session scan and `findCodexSession` from fixture rollout files.
+- Settings: `defaultAgent` falls back to `cursor`.
+- tmux integration with `stub-codex.sh`: worktree launch, id from hooks, exit,
+  resume by id, remove; and resume via rollout scan when hooks are untrusted.
+- Manual run against Codex CLI 0.159.3: hook review screen, events, resume.
 
 ## Out of scope
 

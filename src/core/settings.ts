@@ -1,5 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { isAgent } from "./agents.ts";
 import { settingsFile, ymHome } from "./paths.ts";
+import type { Agent } from "./types.ts";
 
 export interface Settings {
   useWorktrees: boolean;
@@ -7,12 +9,15 @@ export interface Settings {
   nameWorktrees: boolean;
   /** Greet the user as "Main" instead of "Master". */
   callMeMain: boolean;
+  /** Agent for prompts without a `#agent` tag. */
+  defaultAgent: Agent;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   useWorktrees: true,
   nameWorktrees: true,
   callMeMain: false,
+  defaultAgent: "cursor",
 };
 
 const flag = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
@@ -24,6 +29,7 @@ export function loadSettings(): Settings {
       useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
       nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
       callMeMain: flag(value.callMeMain, DEFAULT_SETTINGS.callMeMain),
+      defaultAgent: isAgent(value.defaultAgent) ? value.defaultAgent : DEFAULT_SETTINGS.defaultAgent,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

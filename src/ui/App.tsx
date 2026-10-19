@@ -22,9 +22,17 @@ import {
   type GroupMode,
   type TabId,
 } from "../core/filter.ts";
-import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
+import { AGENT_NAMES, agentAvailable, agentOf, notFound } from "../core/agents.ts";
+import {
+  buildFolderIndex,
+  parsePrompt,
+  rootFolders,
+  suggestAgents,
+  suggestFolders,
+  trailingTag,
+} from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
-import { scanChats, type CursorChat } from "../core/importer.ts";
+import { scanAllChats, type Chat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
@@ -45,12 +53,14 @@ type Mode =
   | { kind: "rename"; id: string; text: string }
   | { kind: "highlight"; id: string; color: HighlightColor | undefined }
   | { kind: "confirm"; id: string; action: ConfirmAction }
-  | { kind: "import"; chats: CursorChat[] }
+  | { kind: "import"; chats: Chat[] }
   | { kind: "settings" };
 
 const KEYS =
-  "⏎ open · ↑↓ select · @ folder · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
+  "⏎ open · ↑↓ select · @ folder · # agent · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
+/** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
+const CODEX_SILENT_MS = 20_000;
 const MAX_INPUT_LINES = 8;
 const MIN_LIST_HEIGHT = 3;
 const MIN_PROMPT_LENGTH = 4;
@@ -69,7 +79,7 @@ const INPUT_BAR = {
 
 const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.length / Math.max(1, width)));
 
-export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
+export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: boolean; codexHooksInstalled: boolean }) {
   const { exit } = useApp();
   const { columns, rows: termRows } = useWindowSize();
   const { rows, panes, refresh } = useDashboard();
@@ -78,7 +88,11 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const [selectedId, setSelectedId] = useState<string>();
   const [mode, setMode] = useState<Mode>({ kind: "main" });
   const [failure, setFailure] = useState<string | undefined>(
-    hooksInstalled ? undefined : "Status tracking is off: run `ym install`, then restart agents.",
+    !hooksInstalled
+      ? "Status tracking is off: run `ym install`, then restart agents."
+      : !codexHooksInstalled
+        ? "Codex status tracking is off: run `ym install`, then restart Codex sessions."
+        : undefined,
   );
   const [text, setText] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -97,16 +111,23 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const index = foundIndex === -1 ? 0 : foundIndex;
   const current = visible[index];
   const currentPane = current ? panes.get(current.session.id) : undefined;
+  const currentAgent = current ? AGENT_NAMES[agentOf(current.session)] : "";
   const loading =
     current && isStarting(current.session) && current.status === "working"
       ? current.session.worktree
-        ? "Preparing the worktree and starting Cursor…"
-        : "Starting Cursor…"
+        ? `Preparing the worktree and starting ${currentAgent}…`
+        : `Starting ${currentAgent}…`
       : "";
+  const codexSilent =
+    !!current &&
+    agentOf(current.session) === "codex" &&
+    !current.session.chatId &&
+    isAlive(currentPane) &&
+    Date.now() - (current.session.launchedAt ?? 0) > CODEX_SILENT_MS;
 
   useEffect(() => {
     const load = () =>
-      setExternalFolders(buildFolderIndex(scanChats().map((c) => c.cwd), rootFolders()).filter((p) => existsSync(p)));
+      setExternalFolders(buildFolderIndex(scanAllChats().map((c) => c.cwd), rootFolders()).filter((p) => existsSync(p)));
     load();
     const timer = setInterval(load, FOLDER_REFRESH_MS);
     return () => clearInterval(timer);
@@ -117,13 +138,29 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     return buildFolderIndex(recent, externalFolders);
   }, [rows, externalFolders]);
 
-  const tag = trailingTag(text);
-  const suggestions = tag && dismissed !== text ? suggestFolders(tag.query, folderIndex) : [];
+  const folderTag = trailingTag(text);
+  const agentTag = trailingTag(text, "#");
+  const tag = folderTag ?? agentTag;
+  const suggestions: string[] =
+    dismissed === text
+      ? []
+      : folderTag
+        ? suggestFolders(folderTag.query, folderIndex).map((path) => `@${tildify(path)}`)
+        : agentTag
+          ? suggestAgents(agentTag.query).map((agent) => `#${agent}`)
+          : [];
   const suggestionIndex = Math.min(suggestion, Math.max(0, suggestions.length - 1));
   const parsed = useMemo(() => parsePrompt(text, folderIndex), [text, folderIndex]);
   const folders = parsed.folders.length ? parsed.folders : [lastCwd];
+  const agent = parsed.agent ?? settings.defaultAgent;
+  const agentMissing = useMemo(() => (agentAvailable(agent) ? undefined : notFound(agent)), [agent]);
   // The tag still being typed isn't an error while suggestions are offered for it.
-  const errors = suggestions.length && tag ? parsed.errors.filter((e) => e !== `Unknown folder @${tag.query}`) : parsed.errors;
+  const errors = [
+    ...(suggestions.length && folderTag
+      ? parsed.errors.filter((e) => e !== `Unknown folder @${folderTag.query}`)
+      : parsed.errors),
+    ...(text.trim() && agentMissing ? [agentMissing] : []),
+  ];
 
   const attempt = (fn: () => void): boolean => {
     try {
@@ -145,14 +182,14 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     const timer = setTimeout(() => {
       try {
         if (mode.kind === "settings") unshow();
-        else if (currentPane && current?.session.chatId) show(currentPane.paneId);
+        else if (currentPane && current && !isStarting(current.session)) show(currentPane.paneId);
         else unshow(loading);
       } catch (e) {
         setFailure((e as Error).message);
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [currentPane?.paneId, current?.session.chatId, mode.kind, loading]);
+  }, [currentPane?.paneId, current?.session.chatId, current?.session.launchedAt, mode.kind, loading]);
 
   useEffect(() => {
     const currentId = current?.session.id;
@@ -167,9 +204,9 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
   const acceptSuggestion = () => {
-    const path = suggestions[suggestionIndex];
-    if (!tag || !path) return;
-    setText(`${text.slice(0, tag.start)}@${tildify(path)} `);
+    const picked = suggestions[suggestionIndex];
+    if (!tag || !picked) return;
+    setText(`${text.slice(0, tag.start)}${picked} `);
     setSuggestion(0);
   };
 
@@ -186,7 +223,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
 
   const launch = () => {
     if (errors.length) return;
-    const input = { prompt: parsed.prompt, folders, images };
+    const input = { prompt: parsed.prompt, folders, images, agent };
     setText("");
     setImages([]);
     setFailure(undefined);
@@ -204,7 +241,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     if (suggestions.length) return acceptSuggestion();
     const typed = text.trim().length;
     if (typed >= MIN_PROMPT_LENGTH) return launch();
-    if (typed) return say(`Type at least ${MIN_PROMPT_LENGTH} characters to start a session.`, true);
+    if (typed) return setFailure(`Type at least ${MIN_PROMPT_LENGTH} characters to start a session.`);
     openCurrent();
   };
 
@@ -235,7 +272,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       }
       if (input === "o") {
         const tracked = new Set(rows.map((r) => r.session.chatId));
-        return setMode({ kind: "import", chats: scanChats().filter((c) => !tracked.has(c.chatId)) });
+        return setMode({ kind: "import", chats: scanAllChats().filter((c) => !tracked.has(c.chatId)) });
       }
       if (input === "s") return setMode({ kind: "settings" });
       if (!current) return;
@@ -295,12 +332,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
   }
 
   const showFailure = !errors.length && !suggestions.length && !!failure;
+  const showCodexHint = !errors.length && !suggestions.length && !failure && !text && codexSilent;
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
-      ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
-    : failure ?? `in ${folders.map(tildify).join(" + ")}`;
-  const targetIsError = errors.length > 0 || showFailure;
+      ? `↑↓ choose ${folderTag ? "a folder" : "an agent"} · Tab or Enter picks it · Esc hides suggestions`
+      : failure ??
+        (showCodexHint
+          ? "Codex isn't reporting status yet: trust ym's hooks in Codex (/hooks)."
+          : `${agent === settings.defaultAgent ? "" : `${AGENT_NAMES[agent]} `}in ${folders.map(tildify).join(" + ")}`);
+  const targetIsError = errors.length > 0 || showFailure || showCodexHint;
   const inputWidth = Math.max(1, columns - INPUT_CHROME);
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(KEYS, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
@@ -371,10 +412,11 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
         height={listHeight}
         tab={tab}
         dimmed={modalOpen}
+        defaultAgent={settings.defaultAgent}
       />
-      {suggestions.map((path, i) => (
-        <Text key={path} inverse={i === suggestionIndex} color="cyan" dimColor={modalOpen} wrap="truncate">
-          {`  @${tildify(path)}`}
+      {suggestions.map((label, i) => (
+        <Text key={label} inverse={i === suggestionIndex} color="cyan" dimColor={modalOpen} wrap="truncate">
+          {`  ${label}`}
         </Text>
       ))}
       <Box
@@ -392,7 +434,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
           width={inputWidth}
           maxLines={maxInputLines}
           highlights={promptHighlights}
-          placeholder="Ask Cursor… (@ for folder)"
+          placeholder={`Ask ${AGENT_NAMES[settings.defaultAgent]}… (@ for folder, # for agent)`}
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);
