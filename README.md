@@ -9,7 +9,7 @@ It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus o
 - Start and monitor many Cursor and Codex sessions from one TUI.
 - See session states (`working`, `ready`, `stopped`, `imported`, etc.) in real time via each agent's hooks.
 - Jump into a running session pane instantly, then return to the dashboard.
-- Launch prompts from the dashboard with `@folder` tags, and `#codex` / `#cursor` to pick the agent.
+- Launch prompts from the dashboard with `@folder` tags; `Shift-Tab` picks the agent.
 - Import past Cursor chats and Codex sessions and resume them.
 - Optional worktrees for new sessions (Cursor-managed for Cursor, ym-managed under `~/.ym/worktrees` for Codex).
 
@@ -56,10 +56,10 @@ CLI commands:
 
 - Type a prompt and press `Enter` to start a new session with the default agent (Cursor unless changed in `Ctrl-s` settings).
 - Use `@folder` tags in the prompt to target workspace folders.
-- Add `#codex` or `#cursor` to send that prompt to another agent. Other `#words` stay in the prompt.
+- The input starts with the agent it will use (e.g. `Cursor › `). `Shift-Tab` switches it for that prompt; after launch it goes back to the default.
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.
 - `Tab` switches between Sessions and Archived.
-- `Shift-Tab` cycles grouping mode.
+- `Ctrl-t` cycles grouping mode.
 - `Ctrl-s` opens settings.
 
 > Note: keybindings and UI details evolve quickly; run `ym help` and check source under `src/ui` for the latest behavior.

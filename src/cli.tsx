@@ -22,8 +22,9 @@ Usage:
   ym hook <event> [codex]  internal: called by agent hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
-In the dashboard, type a prompt and press Enter to start the default agent (Cursor unless
-changed in settings). Tag folders with @ and pick another agent with #codex or #cursor.
+In the dashboard, type a prompt and press Enter to start an agent. The input starts with the
+agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it.
+Tag folders with @. Ctrl-T cycles how the list is grouped.
 ${tmux.DASH_KEY()} returns focus to the list from an agent pane or window.
 Folders offered for @tags come from past sessions, agent chats, and YM_ROOTS (default ~/dev).`;
 

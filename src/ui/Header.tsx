@@ -72,7 +72,7 @@ export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = 
                 )}
               </Text>
             ))}
-            <Text dimColor>{"  (⇧Tab)"}</Text>
+            <Text dimColor>{"  (^T)"}</Text>
           </Text>
         </Box>
       </Box>

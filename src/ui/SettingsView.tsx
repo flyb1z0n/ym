@@ -1,6 +1,6 @@
 import { Box, Text, useInput } from "ink";
 import { useState } from "react";
-import { AGENT_NAMES, AGENTS } from "../core/agents.ts";
+import { AGENT_NAMES, nextAgent } from "../core/agents.ts";
 import { namingModel } from "../core/naming.ts";
 import type { Settings } from "../core/settings.ts";
 import { greeting } from "./Header.tsx";
@@ -28,11 +28,9 @@ const ROWS: Row[] = [
     key: "defaultAgent",
     label: "Default agent",
     describe: (s) =>
-      `Prompts go to ${AGENT_NAMES[s.defaultAgent]} unless they're tagged ${AGENTS.filter((a) => a !== s.defaultAgent)
-        .map((a) => `#${a}`)
-        .join(" or ")}.`,
+      `New prompts start on ${AGENT_NAMES[s.defaultAgent]}; Shift-Tab in the prompt switches the agent for one session.`,
     value: (s) => AGENT_NAMES[s.defaultAgent],
-    next: (s) => ({ ...s, defaultAgent: AGENTS[(AGENTS.indexOf(s.defaultAgent) + 1) % AGENTS.length]! }),
+    next: (s) => ({ ...s, defaultAgent: nextAgent(s.defaultAgent) }),
   },
   {
     key: "useWorktrees",

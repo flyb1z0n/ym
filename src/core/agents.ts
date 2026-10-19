@@ -6,7 +6,12 @@ export const AGENTS: readonly Agent[] = ["cursor", "codex"];
 
 export const AGENT_NAMES: Record<Agent, string> = { cursor: "Cursor", codex: "Codex" };
 
+/** Colour of the agent identifier at the start of the prompt input. */
+export const AGENT_COLORS: Record<Agent, string> = { cursor: "blue", codex: "magenta" };
+
 export const isAgent = (value: unknown): value is Agent => AGENTS.includes(value as Agent);
+
+export const nextAgent = (agent: Agent): Agent => AGENTS[(AGENTS.indexOf(agent) + 1) % AGENTS.length]!;
 
 export const agentOf = (s: Pick<Session, "agent">): Agent => s.agent ?? "cursor";
 

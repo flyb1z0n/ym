@@ -6,14 +6,14 @@ implementation against Codex CLI 0.159.3 changed.
 ## Goal
 
 Run Codex CLI sessions from the dashboard alongside Cursor ones. Cursor stays the
-default; a `#codex` tag in the prompt switches a single session to Codex.
+default; Shift-Tab in the prompt input switches a single session to Codex.
 
 ## Decisions
 
 | Topic | Decision |
 |---|---|
 | Agents | Cursor (`agent`) and Codex (`codex`). No generic/custom command, no Claude Code yet |
-| Selection | `#agent` tag anywhere in the prompt, autocompleted like `@folder` |
+| Selection | Shift-Tab cycles the agent shown at the start of the input; resets to the default after each launch. Grouping moves to Ctrl-T |
 | Default | `defaultAgent` in `settings.json`, cycled in Ctrl-s; defaults to `cursor` |
 | Status source | Each agent's own hooks, normalized to ym's existing event names |
 | Codex hook trust | User trusts ym's hooks once in Codex; ym warns when a Codex session reports nothing |
@@ -38,15 +38,15 @@ each agent keeps a small module and callers branch on `agentOf(session)`:
 `Session` also gains `launchedAt`: Codex sessions run before their chat id is
 known, so "starting" becomes "no chat id and never launched".
 
-### Prompt tag
+### Choosing the agent
 
-`parsePrompt` also extracts `#<agent>` tokens (same `(^|\s)` boundary as `@`):
+The input starts with the agent the prompt will go to, coloured per agent:
+`Cursor › fix the login bug`. Shift-Tab cycles it (it previously cycled the
+grouping mode, which moves to Ctrl-T). It starts on the default agent and goes
+back to it after each launch, and when the default changes in settings.
 
-- A known agent tag is stripped from the prompt and returned as `agent`.
-- An unknown `#word` stays in the prompt untouched (markdown headings, `#123`).
-- Two different agent tags in one prompt is an error.
-
-`LineInput` suggests agent names while a trailing `#` token is typed.
+An earlier draft used `#codex` / `#cursor` tags in the prompt text; it was
+dropped for a single, always-visible control.
 
 ### UI
 
@@ -142,8 +142,8 @@ Cursor chats, labelled by agent.
 
 ## Error handling
 
-- `#codex` without `codex` on PATH: "Codex CLI `codex` not found on PATH"; the
-  prompt stays in the input, like an unknown `@folder`.
+- Codex selected without `codex` on PATH: "Codex CLI `codex` not found on PATH";
+  the prompt stays in the input, like an unknown `@folder`.
 - No id from a live Codex session after 20 s: hint to trust ym's hooks.
 - Resuming a Codex session with no id and no matching rollout: an error asking
   to start a new one.
@@ -152,7 +152,6 @@ Cursor chats, labelled by agent.
 
 ## Testing
 
-- `parsePrompt`: known/unknown/duplicate agent tags, mixed with `@folders`.
 - Codex launch and resume argv.
 - Codex event → status, including `permissionRequest`.
 - Codex hooks and folder-trust install/uninstall against a temp home.

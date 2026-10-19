@@ -22,15 +22,8 @@ import {
   type GroupMode,
   type TabId,
 } from "../core/filter.ts";
-import { AGENT_NAMES, agentAvailable, agentOf, notFound } from "../core/agents.ts";
-import {
-  buildFolderIndex,
-  parsePrompt,
-  rootFolders,
-  suggestAgents,
-  suggestFolders,
-  trailingTag,
-} from "../core/folders.ts";
+import { AGENT_COLORS, AGENT_NAMES, agentAvailable, agentOf, nextAgent, notFound } from "../core/agents.ts";
+import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
 import { scanAllChats, type Chat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
@@ -57,7 +50,7 @@ type Mode =
   | { kind: "settings" };
 
 const KEYS =
-  "⏎ open · ↑↓ select · @ folder · # agent · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
+  "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -101,6 +94,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const [lastCwd, setLastCwd] = useState(process.cwd());
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
   const [settings, setSettings] = useState(loadSettings);
+  /** Agent for the prompt being typed; Shift-Tab cycles it, and each launch resets it to the default. */
+  const [agent, setAgent] = useState(() => settings.defaultAgent);
   const [switchingSession, setSwitchingSession] = useState(false);
   const previousSelection = useRef<string | undefined>(undefined);
 
@@ -138,27 +133,15 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     return buildFolderIndex(recent, externalFolders);
   }, [rows, externalFolders]);
 
-  const folderTag = trailingTag(text);
-  const agentTag = trailingTag(text, "#");
-  const tag = folderTag ?? agentTag;
-  const suggestions: string[] =
-    dismissed === text
-      ? []
-      : folderTag
-        ? suggestFolders(folderTag.query, folderIndex).map((path) => `@${tildify(path)}`)
-        : agentTag
-          ? suggestAgents(agentTag.query).map((agent) => `#${agent}`)
-          : [];
+  const tag = trailingTag(text);
+  const suggestions = tag && dismissed !== text ? suggestFolders(tag.query, folderIndex) : [];
   const suggestionIndex = Math.min(suggestion, Math.max(0, suggestions.length - 1));
   const parsed = useMemo(() => parsePrompt(text, folderIndex), [text, folderIndex]);
   const folders = parsed.folders.length ? parsed.folders : [lastCwd];
-  const agent = parsed.agent ?? settings.defaultAgent;
   const agentMissing = useMemo(() => (agentAvailable(agent) ? undefined : notFound(agent)), [agent]);
   // The tag still being typed isn't an error while suggestions are offered for it.
   const errors = [
-    ...(suggestions.length && folderTag
-      ? parsed.errors.filter((e) => e !== `Unknown folder @${folderTag.query}`)
-      : parsed.errors),
+    ...(suggestions.length && tag ? parsed.errors.filter((e) => e !== `Unknown folder @${tag.query}`) : parsed.errors),
     ...(text.trim() && agentMissing ? [agentMissing] : []),
   ];
 
@@ -204,9 +187,9 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const select = (i: number) => setSelectedId(visible[Math.max(0, Math.min(i, visible.length - 1))]?.session.id);
 
   const acceptSuggestion = () => {
-    const picked = suggestions[suggestionIndex];
-    if (!tag || !picked) return;
-    setText(`${text.slice(0, tag.start)}${picked} `);
+    const path = suggestions[suggestionIndex];
+    if (!tag || !path) return;
+    setText(`${text.slice(0, tag.start)}@${tildify(path)} `);
     setSuggestion(0);
   };
 
@@ -226,6 +209,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     const input = { prompt: parsed.prompt, folders, images, agent };
     setText("");
     setImages([]);
+    setAgent(settings.defaultAgent);
     setFailure(undefined);
     startSession(input, (s) => {
       setLastCwd(s.cwd);
@@ -252,10 +236,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return suggestions.length ? setSuggestion(Math.min(suggestions.length - 1, suggestionIndex + 1)) : select(index + 1);
       }
       if (key.tab) {
-        if (key.shift) {
-          const i = GROUP_MODES.findIndex((m) => m.id === group);
-          return setGroup(GROUP_MODES[(i + 1) % GROUP_MODES.length]!.id);
-        }
+        if (key.shift) return setAgent(nextAgent(agent));
         if (suggestions.length) return acceptSuggestion();
         const i = TABS.findIndex((t) => t.id === tab);
         return setTab(TABS[(i + 1) % TABS.length]!.id);
@@ -275,6 +256,10 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return setMode({ kind: "import", chats: scanAllChats().filter((c) => !tracked.has(c.chatId)) });
       }
       if (input === "s") return setMode({ kind: "settings" });
+      if (input === "t") {
+        const i = GROUP_MODES.findIndex((m) => m.id === group);
+        return setGroup(GROUP_MODES[(i + 1) % GROUP_MODES.length]!.id);
+      }
       if (!current) return;
       const { session } = current;
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
@@ -322,6 +307,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           try {
             saveSettings(next);
             setSettings(next);
+            if (next.defaultAgent !== settings.defaultAgent) setAgent(next.defaultAgent);
           } catch (e) {
             setFailure((e as Error).message);
           }
@@ -336,13 +322,14 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
-      ? `↑↓ choose ${folderTag ? "a folder" : "an agent"} · Tab or Enter picks it · Esc hides suggestions`
+      ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
       : failure ??
         (showCodexHint
           ? "Codex isn't reporting status yet: trust ym's hooks in Codex (/hooks)."
-          : `${agent === settings.defaultAgent ? "" : `${AGENT_NAMES[agent]} `}in ${folders.map(tildify).join(" + ")}`);
+          : `in ${folders.map(tildify).join(" + ")}`);
   const targetIsError = errors.length > 0 || showFailure || showCodexHint;
-  const inputWidth = Math.max(1, columns - INPUT_CHROME);
+  const agentPrefix = `${AGENT_NAMES[agent]} › `;
+  const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length);
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(KEYS, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
   const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
@@ -414,9 +401,9 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         dimmed={modalOpen}
         defaultAgent={settings.defaultAgent}
       />
-      {suggestions.map((label, i) => (
-        <Text key={label} inverse={i === suggestionIndex} color="cyan" dimColor={modalOpen} wrap="truncate">
-          {`  ${label}`}
+      {suggestions.map((path, i) => (
+        <Text key={path} inverse={i === suggestionIndex} color="cyan" dimColor={modalOpen} wrap="truncate">
+          {`  @${tildify(path)}`}
         </Text>
       ))}
       <Box
@@ -429,12 +416,15 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         paddingLeft={1}
         width={columns}
       >
+        <Text bold color={AGENT_COLORS[agent]} dimColor={inputDimmed}>
+          {agentPrefix}
+        </Text>
         <LineInput
           value={text}
           width={inputWidth}
           maxLines={maxInputLines}
           highlights={promptHighlights}
-          placeholder={`Ask ${AGENT_NAMES[settings.defaultAgent]}… (@ for folder, # for agent)`}
+          placeholder="Type a prompt… (@ for folder, ⇧Tab switches agent)"
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);

@@ -2,14 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  buildFolderIndex,
-  parsePrompt,
-  rootFolders,
-  suggestAgents,
-  suggestFolders,
-  trailingTag,
-} from "../src/core/folders.ts";
+import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../src/core/folders.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "ym-folders-")));
 for (const d of ["common-api", "front-end", "private/ym", "private/notes", "repo/.git", "repo/src", ".hidden"]) {
@@ -78,27 +71,6 @@ describe("folders", () => {
       folders: [],
       errors: ["Unknown folder @nope"],
     });
-  });
-
-  test("parsePrompt pulls a #agent tag out and leaves other #words alone", () => {
-    const index = [p("common-api")];
-    expect(parsePrompt("@common-api #codex fix #123 in the # Setup section", index)).toEqual({
-      prompt: "fix #123 in the # Setup section",
-      folders: [p("common-api")],
-      agent: "codex",
-      errors: [],
-    });
-    expect(parsePrompt("do it #Cursor", index)).toEqual({ prompt: "do it", folders: [], agent: "cursor", errors: [] });
-    expect(parsePrompt("a#codex stays", index)).toEqual({ prompt: "a#codex stays", folders: [], errors: [] });
-    expect(parsePrompt("#codex #cursor #codex go", index).errors).toEqual(["Pick one agent: #codex or #cursor"]);
-  });
-
-  test("trailingTag finds a #tag being typed, and agents are suggested by prefix", () => {
-    expect(trailingTag("fix #co", "#")).toEqual({ start: 4, query: "co" });
-    expect(trailingTag("fix @co", "#")).toBeUndefined();
-    expect(suggestAgents("")).toEqual(["cursor", "codex"]);
-    expect(suggestAgents("CO")).toEqual(["codex"]);
-    expect(suggestAgents("123")).toEqual([]);
   });
 
   test("index excludes ym worktree folders from suggestions", () => {
