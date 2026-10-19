@@ -199,14 +199,25 @@ export function stopSession(pane: PaneInfo | undefined): void {
   if (pane) killAgentPane(pane.paneId);
 }
 
-export function removeSession(s: Session, pane: PaneInfo | undefined): void {
-  stopSession(pane);
-  if (s.worktree) removeWorktree(s.cwd, s.worktree);
-  deleteSession(s.id);
-}
-
 /** The on-disk copy, which may have gained its chat id since the dashboard last read it. */
 const latest = (s: Session) => loadSession(s.id) ?? s;
+
+/**
+ * The session is unlisted as soon as this returns; the promise settles once its worktree is cleaned up.
+ * If that cleanup fails, the session is saved back so it can be retried.
+ */
+export async function removeSession(s: Session, pane: PaneInfo | undefined): Promise<void> {
+  const saved = latest(s);
+  stopSession(pane);
+  deleteSession(s.id);
+  if (!s.worktree) return;
+  try {
+    await removeWorktree(s.cwd, s.worktree);
+  } catch (e) {
+    saveSession(saved);
+    throw e;
+  }
+}
 
 export function renameSession(s: Session, name: string): void {
   const cur = latest(s);

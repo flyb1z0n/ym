@@ -28,9 +28,14 @@ export interface SessionState {
   base: BaseStatus;
   lastEventAt: number;
   abortedAt?: number;
+  /** Tool calls still running; a single long tool call sends no events until it ends. */
+  openTools: readonly string[];
 }
 
-export const initialState = (): SessionState => ({ base: "none", lastEventAt: 0 });
+export const initialState = (): SessionState => ({ base: "none", lastEventAt: 0, openTools: [] });
+
+/** A tool call without its closing event (e.g. a timed-out hook) must not outlive the turn. */
+const TURN_BOUNDARIES = new Set(["ymLaunch", "beforeSubmitPrompt", "stop", "sessionEnd"]);
 
 /** Cursor emits sessionEnd for subagent chats too; only the main chatId should end the ym session. */
 export function appliesToSession(ev: HookEvent, sessionChatId: string | undefined): boolean {
@@ -38,8 +43,9 @@ export function appliesToSession(ev: HookEvent, sessionChatId: string | undefine
   return ev.chatId === sessionChatId;
 }
 
-export function applyEvent(state: SessionState, ev: HookEvent, sessionChatId?: string): SessionState {
-  if (!appliesToSession(ev, sessionChatId)) return state;
+type BaseState = Omit<SessionState, "openTools">;
+
+function nextBase(state: SessionState, ev: HookEvent): BaseState {
   const at = Math.max(state.lastEventAt, ev.ts);
   if (ev.event === "ymLaunch") return { base: ev.withPrompt ? "working" : "your_turn", lastEventAt: at };
   if (ev.event === "stop") {
@@ -53,6 +59,19 @@ export function applyEvent(state: SessionState, ev: HookEvent, sessionChatId?: s
   if (ev.event === "sessionEnd") return { base: "exited", lastEventAt: at };
   if (WORKING_EVENTS.has(ev.event)) return { base: "working", lastEventAt: at };
   return { ...state, lastEventAt: at };
+}
+
+function nextOpenTools(open: readonly string[], ev: HookEvent): readonly string[] {
+  if (TURN_BOUNDARIES.has(ev.event)) return [];
+  if (!ev.toolUseId) return open;
+  if (ev.event === "preToolUse") return [...open, ev.toolUseId];
+  if (ev.event === "postToolUse" || ev.event === "postToolUseFailure") return open.filter((id) => id !== ev.toolUseId);
+  return open;
+}
+
+export function applyEvent(state: SessionState, ev: HookEvent, sessionChatId?: string): SessionState {
+  if (!appliesToSession(ev, sessionChatId)) return state;
+  return { ...nextBase(state, ev), openTools: nextOpenTools(state.openTools, ev) };
 }
 
 export function applyEvents(state: SessionState, events: HookEvent[], sessionChatId?: string): SessionState {
@@ -71,7 +90,7 @@ export function deriveStatus(
     return isAlive(pane) ? "working" : "exited";
   }
   if (!pane || pane.dead || state.base === "exited") return "exited";
-  if (state.base === "working" && now - state.lastEventAt > STALE_MS) return "stale";
+  if (state.base === "working" && !state.openTools.length && now - state.lastEventAt > STALE_MS) return "stale";
   return state.base;
 }
 

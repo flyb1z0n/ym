@@ -13,7 +13,7 @@ import {
   isCodexInstalled,
   uninstallCodex,
 } from "../src/core/install.ts";
-import { applyEvents, deriveStatus, initialState } from "../src/core/status.ts";
+import { applyEvents, deriveStatus, initialState, STALE_MS } from "../src/core/status.ts";
 
 let dir: string;
 beforeEach(() => {
@@ -54,6 +54,17 @@ describe("codex hooks", () => {
     expect(status(["UserPromptSubmit", "PermissionRequest"])).toBe("your_turn");
     expect(status(["UserPromptSubmit", "Stop"])).toBe("your_turn");
     expect(status(["Stop", "SessionEnd"])).toBe("exited");
+  });
+
+  test("a long-running Codex tool call isn't stale", () => {
+    const s = { source: "ym" as const, chatId: "s1", createdAt: 0 };
+    const alive = { paneId: "%1", dead: false, shown: false };
+    const call = { session_id: "s1", tool_name: "Bash", tool_use_id: "call_1" };
+    const events = [toCodexEvent("UserPromptSubmit", call, 1)!, toCodexEvent("PreToolUse", call, 2)!];
+    const later = 2 + STALE_MS + 1;
+    expect(deriveStatus(s, applyEvents(initialState(), events), alive, later)).toBe("working");
+    const done = [...events, toCodexEvent("PostToolUse", call, 3)!];
+    expect(deriveStatus(s, applyEvents(initialState(), done), alive, 3 + STALE_MS + 1)).toBe("stale");
   });
 
   test("a launched Codex session without its id yet is running, not starting", () => {

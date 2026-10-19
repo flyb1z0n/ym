@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { cursorHome, ymWorktreesDir } from "./paths.ts";
 
@@ -53,6 +54,16 @@ function git(cwd: string, args: string[]): { stdout: string; stderr: string; exi
   }
 }
 
+async function gitAsync(cwd: string, args: string[]): Promise<{ stdout: string; exitCode: number }> {
+  try {
+    const p = Bun.spawn(["git", ...args], { cwd, stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+    const [stdout, exitCode] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    return { stdout, exitCode };
+  } catch {
+    return { stdout: "", exitCode: 1 };
+  }
+}
+
 export function listWorktrees(cwd: string): GitWorktree[] {
   if (!existsSync(cwd)) return [];
   const res = git(cwd, ["worktree", "list", "--porcelain"]);
@@ -60,12 +71,24 @@ export function listWorktrees(cwd: string): GitWorktree[] {
   return parseWorktreeList(res.stdout);
 }
 
-/** Removes the git worktree and its branch, plus any cursor worktree folder on disk. */
-export function removeWorktree(cwd: string, worktreeName: string): void {
+/** Deletes the folder, reporting whether it's actually gone. */
+async function removeDir(path: string): Promise<boolean> {
+  await rm(path, { recursive: true, force: true }).catch(() => {});
+  return !existsSync(path);
+}
+
+/**
+ * Removes the git worktree and its branch, plus any Cursor or ym worktree folder on disk.
+ * Async because worktrees can hold large trees (node_modules) that would freeze the UI if deleted synchronously.
+ * Throws if a worktree folder is still on disk afterwards.
+ */
+export async function removeWorktree(cwd: string, worktreeName: string): Promise<void> {
   if (!worktreeName) return;
+  const leftovers: string[] = [];
 
   if (existsSync(cwd)) {
-    const worktrees = listWorktrees(cwd);
+    const list = await gitAsync(cwd, ["worktree", "list", "--porcelain"]);
+    const worktrees = list.exitCode === 0 ? parseWorktreeList(list.stdout) : [];
     const target = worktrees.find(
       (wt) =>
         !wt.isMain &&
@@ -75,37 +98,27 @@ export function removeWorktree(cwd: string, worktreeName: string): void {
     );
 
     if (target) {
-      git(cwd, ["worktree", "remove", "--force", target.path]);
-      if (target.branch) git(cwd, ["branch", "-D", target.branch]);
-      if (existsSync(target.path)) {
-        try {
-          rmSync(target.path, { recursive: true, force: true });
-        } catch {
-          // best-effort filesystem cleanup
-        }
-      }
+      await gitAsync(cwd, ["worktree", "remove", "--force", target.path]);
+      if (target.branch) await gitAsync(cwd, ["branch", "-D", target.branch]);
+      if (!(await removeDir(target.path))) leftovers.push(target.path);
     } else {
       // Branch might still exist even if worktree was pruned/unlinked
-      git(cwd, ["branch", "-D", worktreeName]);
+      await gitAsync(cwd, ["branch", "-D", worktreeName]);
     }
-    git(cwd, ["worktree", "prune"]);
+    await gitAsync(cwd, ["worktree", "prune"]);
   }
 
   // Check Cursor's and ym's worktree storage (<root>/*/<worktreeName>)
   for (const root of [join(cursorHome(), "worktrees"), ymWorktreesDir()]) {
     if (!existsSync(root)) continue;
-    try {
-      for (const repoDir of readdirSync(root, { withFileTypes: true })) {
-        if (!repoDir.isDirectory()) continue;
-        const wtPath = join(root, repoDir.name, worktreeName);
-        if (existsSync(wtPath)) {
-          rmSync(wtPath, { recursive: true, force: true });
-        }
-      }
-    } catch {
-      // best-effort cleanup
+    for (const repoDir of readdirSync(root, { withFileTypes: true })) {
+      if (!repoDir.isDirectory()) continue;
+      const wtPath = join(root, repoDir.name, worktreeName);
+      if (existsSync(wtPath) && !leftovers.includes(wtPath) && !(await removeDir(wtPath))) leftovers.push(wtPath);
     }
   }
+
+  if (leftovers.length) throw new Error(`Couldn't remove worktree: ${leftovers.join(", ")}`);
 }
 
 /** Where ym keeps the `name` worktree of the repo containing `cwd`, or undefined outside a repo. */

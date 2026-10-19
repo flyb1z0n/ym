@@ -49,6 +49,8 @@ export interface HookEvent {
   event: string;
   chatId?: string;
   tool?: string;
+  /** Pairs a preToolUse with the postToolUse or postToolUseFailure that closes it. */
+  toolUseId?: string;
   stopStatus?: string;
   /** Only on ymLaunch: whether the agent was started with an initial prompt. */
   withPrompt?: boolean;

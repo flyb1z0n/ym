@@ -380,9 +380,16 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       return setFailure("That session no longer exists.");
     }
     const { action } = mode;
+    if (action === "delete") {
+      setMode({ kind: "main" });
+      setFailure(undefined);
+      removeSession(modalTarget, panes.get(modalTarget.id))
+        .catch((e: Error) => setFailure(`Session kept. ${e.message}`))
+        .finally(refresh);
+      return refresh();
+    }
     const succeeded = attempt(() => {
       if (action === "stop") stopSession(panes.get(modalTarget.id));
-      else if (action === "delete") removeSession(modalTarget, panes.get(modalTarget.id));
       else toggleArchive(modalTarget);
     });
     if (succeeded) setMode({ kind: "main" });

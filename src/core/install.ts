@@ -3,7 +3,14 @@ import { dirname, join } from "node:path";
 import { CODEX_EVENTS } from "./hook.ts";
 import { codexHome, cursorHome, installedHooksFile, ymWorktreesDir } from "./paths.ts";
 
-export const HOOK_EVENTS = ["beforeSubmitPrompt", "preToolUse", "postToolUse", "stop", "sessionEnd"];
+export const HOOK_EVENTS = [
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "stop",
+  "sessionEnd",
+];
 
 interface HookEntry {
   command: string;

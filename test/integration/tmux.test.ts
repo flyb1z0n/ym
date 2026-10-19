@@ -161,7 +161,7 @@ describe("tmux integration with a stub agent", () => {
     let id = "";
     const started = actions.startSession({ prompt: "gone", folders: [dir] }, (draft) => {
       id = draft.id;
-      actions.removeSession(draft, undefined);
+      void actions.removeSession(draft, undefined);
     });
     await expect(started).rejects.toThrow("removed before Cursor started");
     expect(pane(id)).toBeUndefined();
@@ -252,7 +252,7 @@ describe("tmux integration with a stub codex", () => {
     await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${wt}`);
     await waitFor(s.id, "your_turn");
 
-    actions.removeSession(loadSession(s.id)!, pane(s.id));
+    await actions.removeSession(loadSession(s.id)!, pane(s.id));
     expect(existsSync(wt)).toBe(false);
   }, 30000);
 
@@ -272,5 +272,24 @@ describe("tmux integration with a stub codex", () => {
     } finally {
       rmSync(hooksOff(), { force: true });
     }
+  }, 30000);
+
+  test("the dashboard window is never locked to a fixed size", async () => {
+    const dashSize = () => tmux.tmux(["show-options", "-wqv", "-t", "ym:=dash", "window-size"]).stdout.trim();
+    const s = await actions.startSession({ prompt: "locked", folders: [dir] });
+    await waitFor(s.id, "your_turn");
+    const placeholder = dashPanes()[1]!;
+    tmux.show(pane(s.id)!.paneId);
+    tmux.tmux(["kill-pane", "-t", placeholder]);
+    tmux.unshow();
+    expect(dashSize()).toBe("");
+
+    tmux.tmux(["resize-window", "-t", "ym:=dash", "-x", "40", "-y", "20"]);
+    expect(dashSize()).toBe("manual");
+    tmux.ensureDashWindow(["sleep", "600"], dir, tmux.runningBuild());
+    expect(dashSize()).toBe("");
+    actions.stopSession(pane(s.id));
+    tmux.ensureDashLayout(dir);
+    expect(dashPanes()).toHaveLength(2);
   }, 30000);
 });

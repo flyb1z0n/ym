@@ -6,6 +6,7 @@ interface HookPayload {
   /** Codex's id for the conversation. */
   session_id?: string;
   tool_name?: string;
+  tool_use_id?: string;
   status?: string;
 }
 
@@ -13,6 +14,7 @@ export function toEvent(event: string, payload: HookPayload, now: number): HookE
   const ev: HookEvent = { ts: now, event };
   if (payload.conversation_id) ev.chatId = payload.conversation_id;
   if (payload.tool_name) ev.tool = payload.tool_name.slice(0, 80);
+  if (payload.tool_use_id) ev.toolUseId = payload.tool_use_id.slice(0, 80);
   if (event === "stop" && payload.status) ev.stopStatus = payload.status.slice(0, 40);
   return ev;
 }
@@ -34,6 +36,7 @@ export function toCodexEvent(event: string, payload: HookPayload, now: number): 
   const ev: HookEvent = { ts: now, event: name };
   if (payload.session_id) ev.chatId = payload.session_id;
   if (payload.tool_name) ev.tool = payload.tool_name.slice(0, 80);
+  if (payload.tool_use_id) ev.toolUseId = payload.tool_use_id.slice(0, 80);
   if (name === "stop") ev.stopStatus = "completed";
   return ev;
 }
