@@ -71,6 +71,21 @@ describe("status", () => {
     expect(statusAfter(turn(1).slice(0, 1), alive, 1 + STALE_MS + 1)).toBe("stale");
   });
 
+  test("a long-running tool call is not stale until it ends", () => {
+    const late = 10 + STALE_MS + 1;
+    const pre = (ts: number, id: string): HookEvent => ({ ts, event: "preToolUse", tool: "Shell", toolUseId: id });
+    const post = (ts: number, id: string, event = "postToolUse"): HookEvent => ({ ts, event, tool: "Shell", toolUseId: id });
+    const prompt: HookEvent = { ts: 1, event: "beforeSubmitPrompt" };
+
+    expect(statusAfter([prompt, pre(2, "a")], alive, late)).toBe("working");
+    // Parallel calls: the long one keeps running after the short one ends.
+    expect(statusAfter([prompt, pre(2, "a"), pre(3, "b"), post(4, "b")], alive, late)).toBe("working");
+    expect(statusAfter([prompt, pre(2, "a"), post(3, "a")], alive, late)).toBe("stale");
+    expect(statusAfter([prompt, pre(2, "a"), post(3, "a", "postToolUseFailure")], alive, late)).toBe("stale");
+    // A call left open by a lost closing event doesn't carry into the next turn.
+    expect(statusAfter([prompt, pre(2, "a"), { ...prompt, ts: 5 }], alive, late)).toBe("stale");
+  });
+
   test("imported chat without events is imported until resumed", () => {
     expect(deriveStatus(imported, initialState(), undefined, 0)).toBe("imported");
     const resumed = applyEvents(initialState(), [{ ts: 1, event: "ymLaunch", withPrompt: false }]);
