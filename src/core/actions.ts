@@ -151,10 +151,11 @@ export function stopSession(pane: PaneInfo | undefined): void {
   if (pane) killAgentPane(pane.paneId);
 }
 
-export function removeSession(s: Session, pane: PaneInfo | undefined): void {
+/** The session is gone as soon as this returns; the promise settles once its worktree is cleaned up. */
+export async function removeSession(s: Session, pane: PaneInfo | undefined): Promise<void> {
   stopSession(pane);
-  if (s.worktree) removeWorktree(s.cwd, s.worktree);
   deleteSession(s.id);
+  if (s.worktree) await removeWorktree(s.cwd, s.worktree);
 }
 
 /** The on-disk copy, which may have gained its chat id since the dashboard last read it. */

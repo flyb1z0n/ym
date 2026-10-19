@@ -76,7 +76,7 @@ describe("worktree management", () => {
     });
   });
 
-  test("removeWorktree cleans up git worktree, branch, and disk directory", () => {
+  test("removeWorktree cleans up git worktree, branch, and disk directory", async () => {
     const wtDir = join(cursorDir, "worktrees", "repo", "wt123456");
     Bun.spawnSync(["git", "worktree", "add", "-b", "wt123456", wtDir], { cwd: repoDir });
 
@@ -85,7 +85,7 @@ describe("worktree management", () => {
     expect(worktrees.some((w) => w.branch === "wt123456")).toBe(true);
 
     // Call removeWorktree
-    removeWorktree(repoDir, "wt123456");
+    await removeWorktree(repoDir, "wt123456");
 
     expect(existsSync(wtDir)).toBe(false);
     worktrees = listWorktrees(repoDir);
@@ -96,23 +96,23 @@ describe("worktree management", () => {
     expect(res.stdout.toString().trim()).toBe("");
   });
 
-  test("removeWorktree never removes the main worktree", () => {
+  test("removeWorktree never removes the main worktree", async () => {
     const mainWorktreesBefore = listWorktrees(repoDir);
     expect(mainWorktreesBefore[0]?.isMain).toBe(true);
 
-    removeWorktree(repoDir, "repo");
+    await removeWorktree(repoDir, "repo");
     expect(existsSync(repoDir)).toBe(true);
     expect(listWorktrees(repoDir)).toHaveLength(1);
   });
 
-  test("removeWorktree handles already deleted worktree directory", () => {
+  test("removeWorktree handles already deleted worktree directory", async () => {
     const wtDir = join(cursorDir, "worktrees", "repo", "wt_deleted");
     Bun.spawnSync(["git", "worktree", "add", "-b", "wt_deleted", wtDir], { cwd: repoDir });
 
     // Manually delete folder before calling removeWorktree
     rmSync(wtDir, { recursive: true, force: true });
 
-    removeWorktree(repoDir, "wt_deleted");
+    await removeWorktree(repoDir, "wt_deleted");
     const worktrees = listWorktrees(repoDir);
     expect(worktrees.some((w) => w.branch === "wt_deleted")).toBe(false);
 
@@ -120,7 +120,7 @@ describe("worktree management", () => {
     expect(res.stdout.toString().trim()).toBe("");
   });
 
-  test("removeSession removes worktree and deletes session", () => {
+  test("removeSession removes worktree and deletes session", async () => {
     const wtDir = join(cursorDir, "worktrees", "repo", "sess1234");
     Bun.spawnSync(["git", "worktree", "add", "-b", "sess1234", wtDir], { cwd: repoDir });
 
@@ -138,9 +138,10 @@ describe("worktree management", () => {
     expect(loadSession("sess1234")).toBeDefined();
     expect(existsSync(wtDir)).toBe(true);
 
-    removeSession(session, undefined);
-
+    const cleanup = removeSession(session, undefined);
     expect(loadSession("sess1234")).toBeUndefined();
+    await cleanup;
+
     expect(existsSync(wtDir)).toBe(false);
     expect(listWorktrees(repoDir).some((w) => w.branch === "sess1234")).toBe(false);
   });

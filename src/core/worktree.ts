@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { cursorHome } from "./paths.ts";
 
@@ -53,6 +54,16 @@ function git(cwd: string, args: string[]): { stdout: string; stderr: string; exi
   }
 }
 
+async function gitAsync(cwd: string, args: string[]): Promise<{ stdout: string; exitCode: number }> {
+  try {
+    const p = Bun.spawn(["git", ...args], { cwd, stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+    const [stdout, exitCode] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    return { stdout, exitCode };
+  } catch {
+    return { stdout: "", exitCode: 1 };
+  }
+}
+
 export function listWorktrees(cwd: string): GitWorktree[] {
   if (!existsSync(cwd)) return [];
   const res = git(cwd, ["worktree", "list", "--porcelain"]);
@@ -60,12 +71,16 @@ export function listWorktrees(cwd: string): GitWorktree[] {
   return parseWorktreeList(res.stdout);
 }
 
-/** Removes the git worktree and its branch, plus any cursor worktree folder on disk. */
-export function removeWorktree(cwd: string, worktreeName: string): void {
+/**
+ * Removes the git worktree and its branch, plus any cursor worktree folder on disk.
+ * Async because worktrees can hold large trees (node_modules) that would freeze the UI if deleted synchronously.
+ */
+export async function removeWorktree(cwd: string, worktreeName: string): Promise<void> {
   if (!worktreeName) return;
 
   if (existsSync(cwd)) {
-    const worktrees = listWorktrees(cwd);
+    const list = await gitAsync(cwd, ["worktree", "list", "--porcelain"]);
+    const worktrees = list.exitCode === 0 ? parseWorktreeList(list.stdout) : [];
     const target = worktrees.find(
       (wt) =>
         !wt.isMain &&
@@ -75,20 +90,14 @@ export function removeWorktree(cwd: string, worktreeName: string): void {
     );
 
     if (target) {
-      git(cwd, ["worktree", "remove", "--force", target.path]);
-      if (target.branch) git(cwd, ["branch", "-D", target.branch]);
-      if (existsSync(target.path)) {
-        try {
-          rmSync(target.path, { recursive: true, force: true });
-        } catch {
-          // best-effort filesystem cleanup
-        }
-      }
+      await gitAsync(cwd, ["worktree", "remove", "--force", target.path]);
+      if (target.branch) await gitAsync(cwd, ["branch", "-D", target.branch]);
+      await rm(target.path, { recursive: true, force: true }).catch(() => {});
     } else {
       // Branch might still exist even if worktree was pruned/unlinked
-      git(cwd, ["branch", "-D", worktreeName]);
+      await gitAsync(cwd, ["branch", "-D", worktreeName]);
     }
-    git(cwd, ["worktree", "prune"]);
+    await gitAsync(cwd, ["worktree", "prune"]);
   }
 
   // Check Cursor's worktree storage directory (~/.cursor/worktrees/*/<worktreeName>)
@@ -98,9 +107,7 @@ export function removeWorktree(cwd: string, worktreeName: string): void {
       for (const repoDir of readdirSync(cursorWtRoot, { withFileTypes: true })) {
         if (!repoDir.isDirectory()) continue;
         const wtPath = join(cursorWtRoot, repoDir.name, worktreeName);
-        if (existsSync(wtPath)) {
-          rmSync(wtPath, { recursive: true, force: true });
-        }
+        if (existsSync(wtPath)) await rm(wtPath, { recursive: true, force: true });
       }
     } catch {
       // best-effort cleanup

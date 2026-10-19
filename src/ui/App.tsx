@@ -204,7 +204,7 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
     if (suggestions.length) return acceptSuggestion();
     const typed = text.trim().length;
     if (typed >= MIN_PROMPT_LENGTH) return launch();
-    if (typed) return say(`Type at least ${MIN_PROMPT_LENGTH} characters to start a session.`, true);
+    if (typed) return setFailure(`Type at least ${MIN_PROMPT_LENGTH} characters to start a session.`);
     openCurrent();
   };
 
@@ -352,9 +352,16 @@ export function App({ hooksInstalled }: { hooksInstalled: boolean }) {
       return setFailure("That session no longer exists.");
     }
     const { action } = mode;
+    if (action === "delete") {
+      setMode({ kind: "main" });
+      setFailure(undefined);
+      removeSession(modalTarget, panes.get(modalTarget.id))
+        .catch((e: Error) => setFailure(e.message))
+        .finally(refresh);
+      return refresh();
+    }
     const succeeded = attempt(() => {
       if (action === "stop") stopSession(panes.get(modalTarget.id));
-      else if (action === "delete") removeSession(modalTarget, panes.get(modalTarget.id));
       else toggleArchive(modalTarget);
     });
     if (succeeded) setMode({ kind: "main" });
