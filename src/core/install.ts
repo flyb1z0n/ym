@@ -2,7 +2,14 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from "node:path";
 import { cursorHome, installedHooksFile } from "./paths.ts";
 
-export const HOOK_EVENTS = ["beforeSubmitPrompt", "preToolUse", "postToolUse", "stop", "sessionEnd"];
+export const HOOK_EVENTS = [
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "stop",
+  "sessionEnd",
+];
 
 interface HookEntry {
   command: string;

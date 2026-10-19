@@ -59,4 +59,13 @@ describe("store", () => {
     );
     expect(ev).toEqual({ ts: 5, event: "stop", chatId: "chat", stopStatus: "completed" });
   });
+
+  test("tool events keep the tool use id that pairs them", () => {
+    const ev = toEvent(
+      "preToolUse",
+      { conversation_id: "chat", tool_name: "Shell", tool_use_id: "tool-1", tool_input: { command: "ls" } } as never,
+      5,
+    );
+    expect(ev).toEqual({ ts: 5, event: "preToolUse", chatId: "chat", tool: "Shell", toolUseId: "tool-1" });
+  });
 });
