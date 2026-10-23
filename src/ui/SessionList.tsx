@@ -60,7 +60,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
       {items.slice(start, start + bodyHeight).map((item, i) => {
         if (item.kind === "header") {
           const { group } = item;
-          const color = group.status ? STATUS_STYLE[group.status].color : "green";
+          const color = group.status ? STATUS_STYLE[group.status].color : group.pinned ? "magenta" : "green";
           return (
             <Text key={`h-${group.key}`} dimColor={dimmed} wrap="truncate">
               <Text bold color={color}>
