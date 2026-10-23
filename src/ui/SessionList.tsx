@@ -17,7 +17,7 @@ interface Props {
   defaultAgent: Agent;
 }
 
-type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean };
+type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean; pinned: boolean };
 
 const folderLabel = (row: Row) =>
   folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
@@ -40,17 +40,20 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
 
   const items: Item[] = groups.flatMap((g): Item[] => [
     ...(g.label ? [{ kind: "header" as const, group: g }] : []),
-    ...g.rows.map((row) => ({ kind: "row" as const, row, nested: !!g.label })),
+    ...g.rows.map((row) => ({ kind: "row" as const, row, nested: !!g.label, pinned: !!g.pinned })),
   ]);
   const selected = Math.max(0, items.findIndex((i) => i.kind === "row" && i.row.session.id === selectedId));
   const start = windowStart(items.length, selected, bodyHeight);
 
   const inner = width - 2;
-  const indent = mode === "date" ? 0 : 2;
+  const indent = groups.some((g) => g.label) ? 2 : 0;
   const statusWidth = mode === "status" ? 2 : 12;
   const ageWidth = 4;
-  const folderWidth = mode === "folder" ? 0 : Math.min(16, Math.max(6, Math.floor(inner * 0.25)));
-  const nameWidth = Math.max(4, inner - indent - statusWidth - (folderWidth ? folderWidth + 1 : 0) - ageWidth - 2);
+  const folderColumn = Math.min(16, Math.max(6, Math.floor(inner * 0.25)));
+  // Folder mode names the folder in each header, except the Pinned one, which mixes folders.
+  const folderWidthFor = (pinned: boolean) => (mode === "folder" && !pinned ? 0 : folderColumn);
+  const nameWidthFor = (folderWidth: number) =>
+    Math.max(4, inner - indent - statusWidth - (folderWidth ? folderWidth + 1 : 0) - ageWidth - 2);
 
   return (
     <Box width={width} height={height} flexDirection="column" paddingX={1}>
@@ -61,7 +64,8 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
           return (
             <Text key={`h-${group.key}`} dimColor={dimmed} wrap="truncate">
               <Text bold color={color}>
-                {group.status ? icon(group.status) : "▸"} {mode === "folder" ? tildify(group.key) : group.label}
+                {group.status ? icon(group.status) : group.pinned ? "★" : "▸"}{" "}
+                {mode === "folder" && !group.pinned ? tildify(group.key) : group.label}
               </Text>
               <Text dimColor> {group.rows.length}</Text>
             </Text>
@@ -72,6 +76,8 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
         const selectedRow = start + i === selected;
         const agent = agentOf(row.session);
         const agentLabel = agent === defaultAgent ? "" : ` ${agent}`;
+        const folderWidth = folderWidthFor(item.pinned);
+        const nameWidth = nameWidthFor(folderWidth);
         return (
           <Text
             key={row.session.id}

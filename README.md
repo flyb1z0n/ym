@@ -60,6 +60,7 @@ CLI commands:
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.
 - `Tab` switches between Sessions and Archived.
 - `Ctrl-t` cycles grouping mode.
+- `Ctrl-p` pins the selected session to a Pinned group at the top of the list (press again to unpin).
 - `Ctrl-s` opens settings.
 
 > Note: keybindings and UI details evolve quickly; run `ym help` and check source under `src/ui` for the latest behavior.

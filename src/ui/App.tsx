@@ -10,6 +10,7 @@ import {
   startSession,
   stopSession,
   toggleArchive,
+  togglePin,
 } from "../core/actions.ts";
 import type { HighlightColor } from "../core/types.ts";
 import {
@@ -50,7 +51,7 @@ type Mode =
   | { kind: "settings" };
 
 const KEYS =
-  "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
+  "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -262,6 +263,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       }
       if (!current) return;
       const { session } = current;
+      if (input === "p") return attempt(() => togglePin(session));
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "l") return setMode({ kind: "highlight", id: session.id, color: session.highlightColor });
       if (input === "d") {
