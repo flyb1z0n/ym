@@ -1,7 +1,17 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { CODEX_EVENTS } from "./hook.ts";
-import { codexHome, cursorHome, installedHooksFile, ymWorktreesDir } from "./paths.ts";
+import { codexHome, cursorHome, hookShimFile, installedHooksFile, ymWorktreesDir } from "./paths.ts";
 
 export const HOOK_EVENTS = [
   "beforeSubmitPrompt",
@@ -26,13 +36,35 @@ interface HooksFile {
 
 export const hooksPath = () => join(cursorHome(), "hooks.json");
 
-const OURS_RE = /(?:^|\/)(?:ym|cli\.tsx) hook \w+$/;
+/** Also matches the `<ym> hook <event>` commands older installs registered directly. */
+const OURS_RE = /(?:^|\/)(?:(?:ym|cli\.tsx) hook|ym-hook) \w+$/;
 
-export function hookCommand(self: string[], event: string): string {
-  for (const part of self) {
-    if (/\s/.test(part)) throw new Error(`Path contains whitespace, which hooks.json can't represent: ${part}`);
+export function hookCommand(event: string): string {
+  const shim = hookShimFile();
+  if (/\s/.test(shim)) throw new Error(`Path contains whitespace, which hooks.json can't represent: ${shim}`);
+  return `${shim} ${event}`;
+}
+
+const shellQuote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
+
+export const shimScript = (self: string[]) => `#!/bin/sh\nexec ${self.map(shellQuote).join(" ")} hook "$@"\n`;
+
+function readShim(): string | undefined {
+  try {
+    return readFileSync(hookShimFile(), "utf8");
+  } catch {
+    return undefined;
   }
-  return [...self, "hook", event].join(" ");
+}
+
+/** Replaced atomically: running agents may call it mid-install. */
+function writeShim(self: string[]): void {
+  const path = hookShimFile();
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, shimScript(self));
+  chmodSync(tmp, 0o755);
+  renameSync(tmp, path);
 }
 
 function readInstalled(): Set<string> {
@@ -76,17 +108,20 @@ function stripOurs(file: HooksFile, installed: Set<string>): HooksFile {
 }
 
 export function install(self: string[]): string[] {
-  const commands = HOOK_EVENTS.map((event) => hookCommand(self, event));
+  const commands = HOOK_EVENTS.map(hookCommand);
   const installed = readInstalled();
   const file = stripOurs(readHooks(), installed);
   HOOK_EVENTS.forEach((event, i) => (file.hooks[event] ??= []).push({ command: commands[i]!, timeout: 5 }));
+  writeShim(self);
   writeHooks(file);
   mkdirSync(dirname(installedHooksFile()), { recursive: true });
   writeFileSync(installedHooksFile(), JSON.stringify([...installed, ...commands]));
   return commands;
 }
 
+/** Run after uninstallCodex: it also removes the shim Codex hooks call. */
 export function uninstall(): number {
+  rmSync(hookShimFile(), { force: true });
   if (!existsSync(hooksPath())) return 0;
   const installed = readInstalled();
   const before = readHooks();
@@ -98,17 +133,17 @@ export function uninstall(): number {
   return removed;
 }
 
-export function isInstalled(self: string[]): boolean {
-  let file: HooksFile;
+/** Whether hooks.json calls the shim; agents started before that keep their old hooks until restarted. */
+export function hooksRegistered(): boolean {
   try {
-    file = readHooks();
+    const file = readHooks();
+    return HOOK_EVENTS.every((event) => (file.hooks[event] ?? []).some((e) => e.command === hookCommand(event)));
   } catch {
     return false;
   }
-  return HOOK_EVENTS.every((event) =>
-    (file.hooks[event] ?? []).some((e) => e.command === hookCommand(self, event)),
-  );
 }
+
+export const isInstalled = (self: string[]) => hooksRegistered() && readShim() === shimScript(self);
 
 // Codex: same idea, in ~/.codex/hooks.json's nested format.
 
@@ -129,9 +164,9 @@ interface CodexHooksFile {
 
 export const codexHooksPath = () => join(codexHome(), "hooks.json");
 
-const CODEX_OURS_RE = /(?:^|\/)(?:ym|cli\.tsx) hook \w+ codex$/;
+const CODEX_OURS_RE = /(?:^|\/)(?:(?:ym|cli\.tsx) hook|ym-hook) \w+ codex$/;
 
-export const codexHookCommand = (self: string[], event: string) => `${hookCommand(self, event)} codex`;
+export const codexHookCommand = (event: string) => `${hookCommand(event)} codex`;
 
 const isOursCodex = (command: string | undefined, installed: Set<string>) =>
   !!command && (installed.has(command) || CODEX_OURS_RE.test(command));
@@ -197,8 +232,8 @@ function untrustYmWorktrees(): void {
 /** Undefined when Codex isn't set up on this machine (no ~/.codex). */
 export function installCodex(self: string[]): string[] | undefined {
   if (!existsSync(codexHome())) return undefined;
+  const commands = CODEX_HOOK_EVENTS.map(codexHookCommand);
   trustYmWorktrees();
-  const commands = CODEX_HOOK_EVENTS.map((event) => codexHookCommand(self, event));
   const installed = readInstalled();
   const file = stripOursCodex(readCodexHooks(), installed);
   CODEX_HOOK_EVENTS.forEach((event, i) =>
@@ -206,6 +241,7 @@ export function installCodex(self: string[]): string[] | undefined {
       hooks: [{ type: "command", command: commands[i]!, timeout: CODEX_TIMEOUT[event] ?? 5 }],
     }),
   );
+  writeShim(self);
   writeCodexHooks(file);
   mkdirSync(dirname(installedHooksFile()), { recursive: true });
   writeFileSync(installedHooksFile(), JSON.stringify([...installed, ...commands]));
@@ -224,13 +260,14 @@ export function uninstallCodex(): number {
 }
 
 export function isCodexInstalled(self: string[]): boolean {
-  let file: CodexHooksFile;
   try {
-    file = readCodexHooks();
+    const file = readCodexHooks();
+    return (
+      CODEX_HOOK_EVENTS.every((event) =>
+        (file.hooks[event] ?? []).some((g) => (g.hooks ?? []).some((h) => h.command === codexHookCommand(event))),
+      ) && readShim() === shimScript(self)
+    );
   } catch {
     return false;
   }
-  return CODEX_HOOK_EVENTS.every((event) =>
-    (file.hooks[event] ?? []).some((g) => (g.hooks ?? []).some((h) => h.command === codexHookCommand(self, event))),
-  );
 }

@@ -7,6 +7,11 @@ export const eventsDir = () => join(ymHome(), "events");
 export const sessionFile = (id: string) => join(sessionsDir(), `${id}.json`);
 export const eventsFile = (id: string) => join(eventsDir(), `${id}.jsonl`);
 export const installedHooksFile = () => join(ymHome(), "installed-hooks.json");
+/**
+ * What agent hooks run. Agents read hooks.json only at startup, so its commands must outlive
+ * whichever ym build registered them; `ym install` repoints this script instead.
+ */
+export const hookShimFile = () => join(ymHome(), "bin", "ym-hook");
 export const settingsFile = () => join(ymHome(), "config.json");
 
 /** Worktrees ym creates itself, for agents that can't name their own. */
