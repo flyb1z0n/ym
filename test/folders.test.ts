@@ -73,6 +73,13 @@ describe("folders", () => {
     });
   });
 
+  test("parsePrompt keeps line breaks and indentation", () => {
+    const index = [p("common-api")];
+    expect(parsePrompt("@common-api fix:\n  - login @common-api\n\nthen ship ", index).prompt).toBe(
+      "fix:\n  - login\n\nthen ship",
+    );
+  });
+
   test("index excludes ym worktree folders from suggestions", () => {
     process.env.YM_HOME = "/ym-home";
     try {

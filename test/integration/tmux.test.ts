@@ -69,6 +69,14 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("default");
   });
 
+  test("panes that ask for extended keys get Shift-Enter as CSI u", () => {
+    if (!tmux.csiUKeys()) return; // tmux < 3.5
+    expect(tmux.tmux(["show-options", "-sv", "extended-keys"]).stdout.trim()).toBe("on");
+    tmux.configureServer();
+    const features = tmux.tmux(["show-options", "-s", "terminal-features"]).stdout;
+    expect(features.split("*:extkeys")).toHaveLength(2);
+  });
+
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
     expect(s.addDirs).toEqual([extra]);

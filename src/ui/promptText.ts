@@ -21,17 +21,26 @@ export function promptHighlights(text: string): Highlight[] {
   return [...folders, ...images];
 }
 
-/** Start index of each visual line, breaking after spaces when a word would overflow `width`. */
+/**
+ * Start index of each visual line, breaking after spaces when a word would overflow `width`
+ * and after every "\n", which takes up a cell at the end of its line.
+ */
 export function wrapStarts(text: string, width: number): number[] {
   const w = Math.max(1, width);
   const starts = [0];
   let pos = 0;
-  while (text.length - pos > w) {
-    const space = text.lastIndexOf(" ", pos + w - 1);
-    pos = space >= pos ? space + 1 : pos + w;
+  for (;;) {
+    const newline = text.indexOf("\n", pos);
+    const end = newline === -1 ? text.length : newline + 1;
+    while (end - pos > w) {
+      const space = text.lastIndexOf(" ", pos + w - 1);
+      pos = space >= pos ? space + 1 : pos + w;
+      starts.push(pos);
+    }
+    if (newline === -1) return starts;
+    pos = end;
     starts.push(pos);
   }
-  return starts;
 }
 
 /** Visual lines the input needs, counting the cell the cursor sits on past the end. */
