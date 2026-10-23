@@ -232,6 +232,14 @@ export function toggleArchive(s: Session): Session {
   return next;
 }
 
+export function togglePin(s: Session): Session {
+  const next: Session = { ...latest(s) };
+  if (next.pinnedAt === undefined) next.pinnedAt = Date.now();
+  else delete next.pinnedAt;
+  saveSession(next);
+  return next;
+}
+
 export function setHighlightColor(s: Session, color: HighlightColor | undefined): Session {
   const next: Session = { ...latest(s) };
   if (color) next.highlightColor = color;

@@ -71,6 +71,29 @@ describe("grouping", () => {
     ]);
   });
 
+  describe("pinned", () => {
+    const pin = (r: Row, at: number): Row => ({ ...r, session: { ...r.session, pinnedAt: at } });
+    const withPins = [pin(row("exited", 1, "/b"), 20), pin(row("working", 6, "/c"), 10), ...active];
+
+    test("come first in pin order and leave their usual group", () => {
+      for (const mode of ["status", "folder", "date"] as const) {
+        const groups = groupRows(withPins, mode);
+        expect(groups[0]).toMatchObject({ key: "pinned", label: "Pinned", pinned: true });
+        expect(names(groups[0]!.rows)).toEqual(["working-6", "exited-1"]);
+        expect(names(groups.slice(1).flatMap((g) => g.rows))).not.toContain("working-6");
+      }
+      expect(groupRows(withPins, "folder").map((g) => g.label)).toEqual(["Pinned", "/a", "/c", "/b"]);
+    });
+
+    test("by date: the rest gets a header so it doesn't run into Pinned", () => {
+      expect(groupRows(withPins, "date").map((g) => g.label)).toEqual(["Pinned", "Recent"]);
+    });
+
+    test("only pinned sessions yields just the Pinned group", () => {
+      expect(groupRows(withPins.slice(0, 2), "status").map((g) => g.label)).toEqual(["Pinned"]);
+    });
+  });
+
   test("empty input yields no groups", () => {
     expect(groupRows([], "date")).toEqual([]);
     expect(groupRows([], "status")).toEqual([]);

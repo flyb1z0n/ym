@@ -38,6 +38,7 @@ export interface Group {
   /** Undefined for the flat date list, which has no headers. */
   label?: string;
   status?: Status;
+  pinned?: boolean;
   rows: Row[];
 }
 
@@ -59,7 +60,23 @@ const byName = (a: Row, b: Row) =>
 /** Working sessions emit events constantly, so recency order would reshuffle them on every tick. */
 const STATUS_SORT: Partial<Record<Status, (a: Row, b: Row) => number>> = { working: byName };
 
+const isPinned = (r: Row) => r.session.pinnedAt !== undefined;
+/** Pin order, so pinned sessions keep their places while their status changes. */
+const byPinned = (a: Row, b: Row) => a.session.pinnedAt! - b.session.pinnedAt!;
+
+/** Pinned sessions come first in their own group, whatever the grouping mode. */
 export function groupRows(rows: Row[], mode: GroupMode): Group[] {
+  const pinned = rows.filter(isPinned).sort(byPinned);
+  const rest = groupUnpinned(rows.filter((r) => !isPinned(r)), mode);
+  if (!pinned.length) return rest;
+  return [
+    { key: "pinned", label: "Pinned", pinned: true, rows: pinned },
+    // The date list has no header, which would run it into the Pinned group.
+    ...rest.map((g) => (g.label ? g : { ...g, label: "Recent" })),
+  ];
+}
+
+function groupUnpinned(rows: Row[], mode: GroupMode): Group[] {
   if (mode === "date") return rows.length ? [{ key: "date", rows: [...rows].sort(byRecent) }] : [];
   if (mode === "status") {
     return STATUS_ORDER.map((status) => ({

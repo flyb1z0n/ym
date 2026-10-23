@@ -35,6 +35,8 @@ export interface Session {
   source: "ym" | "import";
   createdAt: number;
   archivedAt?: number;
+  /** Set while pinned to the top of the dashboard list. */
+  pinnedAt?: number;
   /** Optional dashboard row highlight color. */
   highlightColor?: HighlightColor;
   /**
