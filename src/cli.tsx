@@ -3,12 +3,14 @@ import { runHook } from "./core/hook.ts";
 import {
   codexHooksPath,
   hooksPath,
+  hooksRegistered,
   install,
   installCodex,
   isInstalled,
   uninstall,
   uninstallCodex,
 } from "./core/install.ts";
+import { hookShimFile } from "./core/paths.ts";
 import { buildId, selfCommand } from "./core/self.ts";
 import { ensureDirs } from "./core/store.ts";
 import * as tmux from "./core/tmux.ts";
@@ -77,10 +79,11 @@ switch (command) {
     break;
   case "install": {
     try {
+      const wasRegistered = hooksRegistered();
       const commands = install(selfCommand());
-      console.log(`Installed ${commands.length} hooks in ${hooksPath()}:`);
+      console.log(`Installed ${commands.length} hooks in ${hooksPath()}, running ${hookShimFile()}:`);
       for (const c of commands) console.log(`  ${c}`);
-      console.log("Restart running Cursor agents for the hooks to take effect.");
+      if (!wasRegistered) console.log("Restart running Cursor agents for the hooks to take effect.");
       const codex = installCodex(selfCommand());
       if (codex) {
         console.log(`\nInstalled ${codex.length} hooks in ${codexHooksPath()}:`);

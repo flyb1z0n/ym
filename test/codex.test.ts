@@ -13,6 +13,7 @@ import {
   isCodexInstalled,
   uninstallCodex,
 } from "../src/core/install.ts";
+import { hookShimFile } from "../src/core/paths.ts";
 import { applyEvents, deriveStatus, initialState, STALE_MS } from "../src/core/status.ts";
 
 let dir: string;
@@ -86,10 +87,11 @@ describe("codex hooks", () => {
     expect(file.description).toBe("x");
     expect(file.hooks.PreToolUse).toEqual([
       mine,
-      { hooks: [{ type: "command", command: "/opt/ym hook PreToolUse codex", timeout: 5 }] },
+      { hooks: [{ type: "command", command: `${hookShimFile()} PreToolUse codex`, timeout: 5 }] },
     ]);
     expect(file.hooks.SessionEnd[0].hooks[0].timeout).toBe(3);
     expect(isCodexInstalled(["/opt/ym"])).toBe(true);
+    expect(isCodexInstalled(["/other/ym"])).toBe(false);
     expect(existsSync(`${codexHooksPath()}.ym-bak`)).toBe(true);
 
     expect(uninstallCodex()).toBe(CODEX_HOOK_EVENTS.length);
