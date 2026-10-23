@@ -1,7 +1,7 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { cursorHome } from "./paths.ts";
+import { cursorHome, ymWorktreesDir } from "./paths.ts";
 
 export interface GitWorktree {
   path: string;
@@ -78,7 +78,7 @@ async function removeDir(path: string): Promise<boolean> {
 }
 
 /**
- * Removes the git worktree and its branch, plus any cursor worktree folder on disk.
+ * Removes the git worktree and its branch, plus any Cursor or ym worktree folder on disk.
  * Async because worktrees can hold large trees (node_modules) that would freeze the UI if deleted synchronously.
  * Throws if a worktree folder is still on disk afterwards.
  */
@@ -108,15 +108,40 @@ export async function removeWorktree(cwd: string, worktreeName: string): Promise
     await gitAsync(cwd, ["worktree", "prune"]);
   }
 
-  // Check Cursor's worktree storage directory (~/.cursor/worktrees/*/<worktreeName>)
-  const cursorWtRoot = join(cursorHome(), "worktrees");
-  if (existsSync(cursorWtRoot)) {
-    for (const repoDir of readdirSync(cursorWtRoot, { withFileTypes: true })) {
+  // Check Cursor's and ym's worktree storage (<root>/*/<worktreeName>)
+  for (const root of [join(cursorHome(), "worktrees"), ymWorktreesDir()]) {
+    if (!existsSync(root)) continue;
+    for (const repoDir of readdirSync(root, { withFileTypes: true })) {
       if (!repoDir.isDirectory()) continue;
-      const wtPath = join(cursorWtRoot, repoDir.name, worktreeName);
+      const wtPath = join(root, repoDir.name, worktreeName);
       if (existsSync(wtPath) && !leftovers.includes(wtPath) && !(await removeDir(wtPath))) leftovers.push(wtPath);
     }
   }
 
   if (leftovers.length) throw new Error(`Couldn't remove worktree: ${leftovers.join(", ")}`);
+}
+
+/** Where ym keeps the `name` worktree of the repo containing `cwd`, or undefined outside a repo. */
+export function ymWorktreePath(cwd: string, name: string): string | undefined {
+  const top = git(cwd, ["rev-parse", "--show-toplevel"]);
+  if (top.exitCode !== 0) return undefined;
+  return join(ymWorktreesDir(), basename(top.stdout.trim()), name);
+}
+
+/**
+ * Creates (or re-attaches) ym's `name` worktree and branch for the repo containing `cwd`, and
+ * returns the folder matching `cwd` inside it.
+ */
+export function ensureYmWorktree(cwd: string, name: string): string {
+  const path = ymWorktreePath(cwd, name);
+  if (!path) throw new Error(`Not a git repo: ${cwd}`);
+  const prefix = git(cwd, ["rev-parse", "--show-prefix"]).stdout.trim();
+  if (!existsSync(path)) {
+    const branchExists = git(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${name}`]).exitCode === 0;
+    const res = git(cwd, ["worktree", "add", ...(branchExists ? [path, name] : ["-b", name, path])]);
+    if (res.exitCode !== 0) throw new Error(`git worktree add failed: ${res.stderr.trim() || res.exitCode}`);
+  }
+  // An untracked subfolder isn't checked out in the worktree; fall back to its root.
+  const sub = join(path, prefix);
+  return realpathSync(existsSync(sub) ? sub : path);
 }

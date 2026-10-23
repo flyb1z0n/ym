@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), "ym-it-")));
 const extra = join(dir, "extra");
@@ -11,14 +11,17 @@ const plain = realpathSync(mkdtempSync(join(tmpdir(), "ym-it-plain-")));
 process.env.YM_HOME = join(dir, "home");
 process.env.YM_TMUX_SOCKET = `ym-test-${process.pid}`;
 process.env.YM_AGENT_BIN = resolve(import.meta.dir, "stub-agent.sh");
+process.env.YM_CODEX_BIN = resolve(import.meta.dir, "stub-codex.sh");
+process.env.YM_CODEX_HOME = join(dir, "codex");
 process.env.YM_TEST_SELF = `${process.execPath} ${resolve(import.meta.dir, "../../src/cli.tsx")}`;
 process.env.YM_NO_NOTIFY = "1";
 chmodSync(process.env.YM_AGENT_BIN, 0o755);
+chmodSync(process.env.YM_CODEX_BIN, 0o755);
 
 const actions = await import("../../src/core/actions.ts");
 const tmux = await import("../../src/core/tmux.ts");
 const { saveSettings } = await import("../../src/core/settings.ts");
-const { EventReader, listSessions } = await import("../../src/core/store.ts");
+const { EventReader, listSessions, loadSession } = await import("../../src/core/store.ts");
 const { applyEvents, deriveStatus, initialState } = await import("../../src/core/status.ts");
 
 const reader = new EventReader();
@@ -166,7 +169,7 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ useWorktrees: false, nameWorktrees: true, callMeMain: false });
+    saveSettings({ useWorktrees: false, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor" });
     try {
       const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
       expect(s.worktree).toBeUndefined();
@@ -175,7 +178,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
       actions.stopSession(p);
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor" });
     }
   }, 30000);
 
@@ -204,7 +207,7 @@ describe("tmux integration with a stub agent", () => {
     expect(empty.worktree).toBe(empty.id);
     actions.stopSession(pane(empty.id));
 
-    saveSettings({ useWorktrees: true, nameWorktrees: false, callMeMain: false });
+    saveSettings({ useWorktrees: true, nameWorktrees: false, callMeMain: false, defaultAgent: "cursor" });
     try {
       const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
       expect(s.worktree).toBe(s.id);
@@ -212,7 +215,62 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
       actions.stopSession(pane(s.id));
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor" });
+    }
+  }, 30000);
+});
+
+describe("tmux integration with a stub codex", () => {
+  const stubId = (ymId: string) => `01a00000-0000-7000-8000-0000000000${ymId.slice(0, 2)}`;
+  const hooksOff = () => join(process.env.YM_HOME!, "codex-hooks-off");
+  // Codex's command line wraps over many rows, so read the scrollback too.
+  const history = (id: string) => tmux.tmux(["capture-pane", "-p", "-J", "-S", "-", "-t", pane(id)!.paneId]).stdout;
+  async function waitForText(id: string, text: string, timeoutMs = 8000) {
+    const end = Date.now() + timeoutMs;
+    while (!history(id).includes(text)) {
+      if (Date.now() > end) throw new Error(`pane never showed: ${text}\n${history(id)}`);
+      await Bun.sleep(100);
+    }
+  }
+
+  test("launch in a ym worktree, learn the id from hooks, exit, resume by id, remove", async () => {
+    // `git worktree add` needs a commit to branch from.
+    Bun.spawnSync(["git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]);
+    const s = await actions.startSession({ prompt: "-fix the thing", folders: [dir, extra], agent: "codex" });
+    expect(s.agent).toBe("codex");
+    expect(s.worktree).toMatch(/^do-the-thing(-\d+)?$/);
+    const wt = join(process.env.YM_HOME!, "worktrees", basename(dir), s.worktree!);
+    await waitFor(s.id, "your_turn");
+    expect(loadSession(s.id)?.chatId).toBe(stubId(s.id));
+    const p = pane(s.id)!;
+    expect(history(s.id)).toContain(`stub codex: -C ${wt} --add-dir ${extra} -- -fix the thing`);
+    expect(history(s.id)).toContain(`cwd: ${wt}`);
+
+    tmux.sendLine(p.paneId, "exit");
+    await waitFor(s.id, "exited");
+    actions.resumeSession(loadSession(s.id)!, pane(s.id));
+    await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${wt}`);
+    await waitFor(s.id, "your_turn");
+
+    await actions.removeSession(loadSession(s.id)!, pane(s.id));
+    expect(existsSync(wt)).toBe(false);
+  }, 30000);
+
+  test("with untrusted hooks it still runs, and resume finds the session Codex saved", async () => {
+    writeFileSync(hooksOff(), "");
+    try {
+      const s = await actions.startSession({ prompt: "quiet", folders: [plain], agent: "codex" });
+      expect(statusOf(s.id)).toBe("working");
+      await waitForText(s.id, "Ask Codex");
+      expect(loadSession(s.id)?.chatId).toBe("");
+
+      actions.stopSession(pane(s.id));
+      actions.resumeSession(loadSession(s.id)!, pane(s.id));
+      expect(loadSession(s.id)?.chatId).toBe(stubId(s.id));
+      await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${plain}`);
+      actions.stopSession(pane(s.id));
+    } finally {
+      rmSync(hooksOff(), { force: true });
     }
   }, 30000);
 

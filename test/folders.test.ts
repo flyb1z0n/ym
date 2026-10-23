@@ -72,4 +72,13 @@ describe("folders", () => {
       errors: ["Unknown folder @nope"],
     });
   });
+
+  test("index excludes ym worktree folders from suggestions", () => {
+    process.env.YM_HOME = "/ym-home";
+    try {
+      expect(buildFolderIndex(["/repo", "/ym-home/worktrees/repo/branch"])).toEqual(["/repo"]);
+    } finally {
+      delete process.env.YM_HOME;
+    }
+  });
 });

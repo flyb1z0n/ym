@@ -1,23 +1,23 @@
 # ym (YesMaster)
 
-`ym` is a terminal dashboard for running and monitoring multiple background Cursor CLI (`agent`) sessions.
+`ym` is a terminal dashboard for running and monitoring multiple background Cursor CLI (`agent`) and Codex CLI (`codex`) sessions.
 
 It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus one pane/window per session, with live status and quick switching.
 
 ## Features
 
-- Start and monitor many Cursor agent sessions from one TUI.
-- See session states (`working`, `ready`, `stopped`, `imported`, etc.) in real time via Cursor hooks.
+- Start and monitor many Cursor and Codex sessions from one TUI.
+- See session states (`working`, `ready`, `stopped`, `imported`, etc.) in real time via each agent's hooks.
 - Jump into a running session pane instantly, then return to the dashboard.
-- Launch prompts from the dashboard with `@folder` tags.
-- Import past Cursor chats and resume them.
-- Optional Cursor-managed worktrees for new sessions.
+- Launch prompts from the dashboard with `@folder` tags; `Shift-Tab` picks the agent.
+- Import past Cursor chats and Codex sessions and resume them.
+- Optional worktrees for new sessions (Cursor-managed for Cursor, ym-managed under `~/.ym/worktrees` for Codex).
 
 ## Requirements
 
 - [Bun](https://bun.sh)
 - [tmux](https://github.com/tmux/tmux/wiki)
-- [Cursor CLI `agent`](https://cursor.com/cli) on your `PATH`
+- [Cursor CLI `agent`](https://cursor.com/cli) and/or [Codex CLI `codex`](https://developers.openai.com/codex/cli) on your `PATH`
 - macOS (notifications use `osascript`)
 
 ## Install
@@ -33,7 +33,9 @@ This script:
 - installs dependencies
 - builds `dist/ym`
 - links `ym` into `~/.local/bin` (or `YM_BIN_DIR` if set)
-- runs `ym install` to register Cursor hooks in `~/.cursor/hooks.json`
+- runs `ym install` to register status hooks in `~/.cursor/hooks.json` and, if Codex is set up, `~/.codex/hooks.json` (plus one trusted-folder entry for `~/.ym/worktrees` in `~/.codex/config.toml`)
+
+Codex runs new hooks only after you trust them: the first Codex session shows "Hooks need review"; pick "Trust all and continue" (or use `/hooks`).
 
 If `~/.local/bin` is not on your `PATH`, add it in your shell profile.
 
@@ -46,17 +48,18 @@ ym
 CLI commands:
 
 - `ym` - open dashboard (starts/attaches to the `ym` tmux server)
-- `ym install` - register hooks
-- `ym uninstall` - remove hooks
+- `ym install` - register hooks (Cursor and Codex)
+- `ym uninstall` - remove hooks (Cursor and Codex)
 - `ym help` - show help
 
 ## Dashboard Basics
 
-- Type a prompt and press `Enter` to start a new Cursor session.
+- Type a prompt and press `Enter` to start a new session with the default agent (Cursor unless changed in `Ctrl-s` settings).
 - Use `@folder` tags in the prompt to target workspace folders.
+- The input starts with the agent it will use (e.g. `Cursor › `). `Shift-Tab` switches it for that prompt; after launch it goes back to the default.
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.
 - `Tab` switches between Sessions and Archived.
-- `Shift-Tab` cycles grouping mode.
+- `Ctrl-t` cycles grouping mode.
 - `Ctrl-s` opens settings.
 
 > Note: keybindings and UI details evolve quickly; run `ym help` and check source under `src/ui` for the latest behavior.
@@ -80,6 +83,7 @@ bun test
 
 - `src/cli.tsx` - CLI entrypoint
 - `src/core/*` - tmux integration, hooks, session state, storage, install logic
+- `src/core/cursor.ts`, `src/core/codex.ts` - per-agent launch commands; `src/core/agents.ts` - the agent list
 - `src/ui/*` - Ink TUI components and dashboard runtime
 - `test/*` - unit and integration tests
 - `scripts/setup.sh` - local install helper

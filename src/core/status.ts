@@ -55,6 +55,7 @@ function nextBase(state: SessionState, ev: HookEvent): BaseState {
     if (state.abortedAt !== undefined && ev.ts - state.abortedAt < ABORT_ECHO_MS) return { ...state, lastEventAt: at };
     return { base: "error", lastEventAt: at };
   }
+  if (ev.event === "permissionRequest") return { base: "your_turn", lastEventAt: at };
   if (ev.event === "sessionEnd") return { base: "exited", lastEventAt: at };
   if (WORKING_EVENTS.has(ev.event)) return { base: "working", lastEventAt: at };
   return { ...state, lastEventAt: at };
@@ -78,7 +79,7 @@ export function applyEvents(state: SessionState, events: HookEvent[], sessionCha
 }
 
 export function deriveStatus(
-  session: Pick<Session, "source" | "chatId" | "createdAt">,
+  session: Pick<Session, "source" | "chatId" | "createdAt" | "launchedAt">,
   state: SessionState,
   pane: PaneInfo | undefined,
   now: number,
@@ -93,6 +94,7 @@ export function deriveStatus(
   return state.base;
 }
 
-export const isStarting = (s: Pick<Session, "chatId">) => !s.chatId;
+/** Not launched yet: Cursor gets its chat id before launch, Codex only after. */
+export const isStarting = (s: Pick<Session, "chatId" | "launchedAt">) => !s.chatId && !s.launchedAt;
 
 export const isAlive = (w: PaneInfo | undefined) => !!w && !w.dead;

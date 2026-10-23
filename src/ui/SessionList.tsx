@@ -1,6 +1,7 @@
 import { Box, Text } from "ink";
 import type { Group, GroupMode, Row, TabId } from "../core/filter.ts";
-import type { Status } from "../core/types.ts";
+import { agentOf } from "../core/agents.ts";
+import type { Agent, Status } from "../core/types.ts";
 import { age, fit, folder, STATUS_STYLE, tildify, windowStart } from "./format.ts";
 import { useSpinner } from "./useSpinner.ts";
 
@@ -12,6 +13,8 @@ interface Props {
   height: number;
   tab: TabId;
   dimmed?: boolean;
+  /** Rows on another agent get a label; default-agent rows stay unlabelled. */
+  defaultAgent: Agent;
 }
 
 type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean };
@@ -19,7 +22,7 @@ type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: 
 const folderLabel = (row: Row) =>
   folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
 
-export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false }: Props) {
+export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false, defaultAgent }: Props) {
   const spinner = useSpinner(groups.some((g) => g.rows.some((r) => r.status === "working")));
   const icon = (status: Status) => (status === "working" ? spinner : STATUS_STYLE[status].icon);
   const bodyHeight = height;
@@ -28,7 +31,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
       <Box width={width} height={height} paddingX={1}>
         <Text dimColor>
           {tab === "sessions"
-            ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a Cursor chat."
+            ? "No sessions. Type a prompt below to start one, or press Ctrl-O to import a past chat."
             : "No archived sessions. Ctrl-A archives the selected one."}
         </Text>
       </Box>
@@ -67,6 +70,8 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
         const { row } = item;
         const style = STATUS_STYLE[row.status];
         const selectedRow = start + i === selected;
+        const agent = agentOf(row.session);
+        const agentLabel = agent === defaultAgent ? "" : ` ${agent}`;
         return (
           <Text
             key={row.session.id}
@@ -79,7 +84,10 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
             <Text color={style.color}>
               {fit(mode === "status" ? icon(row.status) : `${icon(row.status)} ${style.label}`, statusWidth)}
             </Text>
-            <Text dimColor={row.session.archivedAt !== undefined}>{fit(row.session.name, nameWidth)}</Text>{" "}
+            <Text dimColor={row.session.archivedAt !== undefined}>
+              {fit(row.session.name, Math.max(1, nameWidth - agentLabel.length))}
+            </Text>
+            {agentLabel ? <Text dimColor>{agentLabel}</Text> : null}{" "}
             {folderWidth ? <Text dimColor>{`${fit(folderLabel(row), folderWidth)} `}</Text> : null}
             <Text dimColor>{age(row.lastActivity).padStart(ageWidth)}</Text>
           </Text>

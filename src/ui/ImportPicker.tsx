@@ -1,16 +1,18 @@
 import { Box, Text, useInput } from "ink";
 import { LineInput } from "./LineInput.tsx";
 import { useMemo, useState } from "react";
-import type { CursorChat } from "../core/importer.ts";
+import type { Chat } from "../core/importer.ts";
 import { age, fit, tildify, windowStart } from "./format.ts";
 
 interface Props {
-  chats: CursorChat[];
+  chats: Chat[];
   width: number;
   height: number;
-  onImport: (chat: CursorChat) => void;
+  onImport: (chat: Chat) => void;
   onClose: () => void;
 }
+
+const AGENT_WIDTH = "cursor".length;
 
 export function ImportPicker({ chats, width, height, onImport, onClose }: Props) {
   const [query, setQuery] = useState("");
@@ -19,7 +21,9 @@ export function ImportPicker({ chats, width, height, onImport, onClose }: Props)
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return chats;
-    return chats.filter((c) => c.title.toLowerCase().includes(q) || c.cwd.toLowerCase().includes(q));
+    return chats.filter(
+      (c) => c.title.toLowerCase().includes(q) || c.cwd.toLowerCase().includes(q) || c.agent.startsWith(q),
+    );
   }, [chats, query]);
   const index = Math.min(selected, Math.max(0, visible.length - 1));
 
@@ -34,19 +38,19 @@ export function ImportPicker({ chats, width, height, onImport, onClose }: Props)
   const inner = width - 4;
   const ageWidth = 4;
   const folderWidth = Math.min(40, Math.floor(inner * 0.4));
-  const titleWidth = Math.max(4, inner - folderWidth - ageWidth - 2);
+  const titleWidth = Math.max(4, inner - AGENT_WIDTH - folderWidth - ageWidth - 3);
 
   return (
     <Box borderStyle="round" width={width} height={height} flexDirection="column" paddingX={1}>
       <Text bold>
-        Import Cursor chats <Text dimColor>({visible.length})</Text>
+        Import chats <Text dimColor>({visible.length})</Text>
         <Text dimColor> · Enter adds to the dashboard · Esc closes</Text>
       </Text>
       <Box>
         <Text color="green">filter </Text>
         <LineInput
           value={query}
-          placeholder="type to filter by title or folder"
+          placeholder="type to filter by title, folder, or agent"
           onChange={(v) => {
             setQuery(v);
             setSelected(0);
@@ -63,7 +67,8 @@ export function ImportPicker({ chats, width, height, onImport, onClose }: Props)
       ) : (
         visible.slice(start, start + bodyHeight).map((chat, i) => (
           <Text key={chat.chatId} wrap="truncate" inverse={start + i === index}>
-            {fit(chat.title, titleWidth)} <Text dimColor>{fit(tildify(chat.cwd), folderWidth)}</Text>{" "}
+            <Text dimColor>{fit(chat.agent, AGENT_WIDTH)}</Text> {fit(chat.title, titleWidth)}{" "}
+            <Text dimColor>{fit(tildify(chat.cwd), folderWidth)}</Text>{" "}
             <Text dimColor>{age(chat.updatedAt).padStart(ageWidth)}</Text>
           </Text>
         ))

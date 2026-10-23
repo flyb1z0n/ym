@@ -1,7 +1,9 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
+import { AGENT_NAMES, agentAvailable, agentOf, notFound } from "./agents.ts";
+import { codexCommand, codexModel, findCodexSession } from "./codex.ts";
 import { createChat, launchCommand, processingModel, PROMPT_BAR } from "./cursor.ts";
 import { promptPastes, referencedImages, stripImageMarkers } from "./images.ts";
-import type { CursorChat } from "./importer.ts";
+import type { Chat } from "./importer.ts";
 import { isGitRepo, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
@@ -16,8 +18,8 @@ import {
   respawnAgentPane,
   type AgentLaunch,
 } from "./tmux.ts";
-import type { HighlightColor, PaneInfo, Session } from "./types.ts";
-import { removeWorktree } from "./worktree.ts";
+import type { Agent, HighlightColor, PaneInfo, Session } from "./types.ts";
+import { ensureYmWorktree, removeWorktree } from "./worktree.ts";
 
 export interface NewSessionInput {
   prompt: string;
@@ -26,6 +28,8 @@ export interface NewSessionInput {
   /** Files behind the prompt's `[Image #N]` markers. */
   images?: string[];
   name?: string;
+  /** Defaults to Cursor. */
+  agent?: Agent;
 }
 
 const PROMPT_BAR_TIMEOUT_MS = 20_000;
@@ -58,11 +62,20 @@ export function resolveDir(input: string): string {
   return realpathSync(path);
 }
 
-function agentLaunch(s: Session, prompt?: string): AgentLaunch {
+/** Codex runs in ym's worktree for the session, created on first use. */
+const codexDir = (s: Session) => (s.worktree ? ensureYmWorktree(s.cwd, s.worktree) : s.cwd);
+
+function agentLaunch(s: Session, prompt?: string, images?: string[]): AgentLaunch {
+  const env = { YM_SESSION_ID: s.id };
+  if (agentOf(s) === "codex") {
+    const cwd = codexDir(s);
+    const chatId = s.chatId || undefined;
+    return { id: s.id, cwd, env, command: codexCommand({ cwd, chatId, addDirs: s.addDirs, prompt, images, model: codexModel() }) };
+  }
   return {
     id: s.id,
     cwd: s.cwd,
-    env: { YM_SESSION_ID: s.id },
+    env,
     command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt, worktree: s.worktree, model: processingModel() }),
   };
 }
@@ -77,14 +90,17 @@ export async function startSession(
 ): Promise<Session> {
   const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
   if (!cwd) throw new Error("No folder to start in.");
+  const agent = input.agent ?? "cursor";
+  if (!agentAvailable(agent)) throw new Error(`${notFound(agent)}.`);
   const settings = loadSettings();
   const id = newSessionId();
   const prompt = input.prompt.trim();
-  const withImages = referencedImages(prompt, input.images ?? []).length > 0;
+  const images = referencedImages(prompt, input.images ?? []);
   const namingPrompt = stripImageMarkers(prompt);
   const draft: Session = {
     id,
     name: input.name?.trim() || defaultName(prompt, id),
+    agent,
     cwd,
     chatId: "",
     source: "ym",
@@ -95,14 +111,15 @@ export async function startSession(
   if (useWorktree) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
+  const suggestName = () =>
+    useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined;
+  if (agent === "codex") return startCodex(draft, prompt, images, await suggestName());
 
+  const withImages = images.length > 0;
   let chatId: string;
   let suggested: string | undefined;
   try {
-    [chatId, suggested] = await Promise.all([
-      createChat(cwd),
-      useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined,
-    ]);
+    [chatId, suggested] = await Promise.all([createChat(cwd), suggestName()]);
   } catch (e) {
     deleteSession(id);
     throw e;
@@ -119,25 +136,56 @@ export async function startSession(
   return session;
 }
 
+/** Codex can't create a chat up front: it launches right away and its SessionStart hook records the id. */
+function startCodex(draft: Session, prompt: string, images: string[], suggested: string | undefined): Session {
+  const current = loadSession(draft.id);
+  if (!current) throw new Error(`${draft.name} was removed before Codex started.`);
+  const session: Session = { ...current, launchedAt: Date.now() };
+  if (suggested) session.worktree = uniqueWorktreeName(suggested, session.cwd);
+  let launch: AgentLaunch;
+  try {
+    launch = agentLaunch(session, prompt || undefined, images);
+  } catch (e) {
+    deleteSession(draft.id);
+    throw e;
+  }
+  saveSession(session);
+  appendEvent(session.id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
+  newAgentPane(launch);
+  return session;
+}
+
 /** Restarts the agent in its existing pane, or in a new window if it has none. */
 export function resumeSession(s: Session, pane: PaneInfo | undefined): void {
+  const agent = AGENT_NAMES[agentOf(s)];
   if (isStarting(s)) {
     throw new Error(
       Date.now() - s.createdAt > START_TIMEOUT_MS
         ? "This session never finished starting. Remove it and start a new one."
-        : "Cursor is still starting this session…",
+        : `${agent} is still starting this session…`,
     );
   }
   if (!existsSync(s.cwd)) throw new Error(`Folder no longer exists: ${s.cwd}`);
+  if (!agentAvailable(agentOf(s))) throw new Error(`${notFound(agentOf(s))}.`);
+  if (agentOf(s) === "codex" && !s.chatId) {
+    // Its SessionStart hook never ran (hooks not trusted yet), so look for the session Codex saved.
+    const chatId = findCodexSession(codexDir(s), s.launchedAt ?? s.createdAt);
+    if (!chatId) {
+      throw new Error("Codex didn't save this session, so it can't be resumed. Remove it and start a new one.");
+    }
+    s = { ...latest(s), chatId };
+    saveSession(s);
+  }
   appendEvent(s.id, { ts: Date.now(), event: "ymLaunch", withPrompt: false });
   if (pane) respawnAgentPane(pane.paneId, agentLaunch(s));
   else newAgentPane(agentLaunch(s));
 }
 
-export function importChat(chat: CursorChat): Session {
+export function importChat(chat: Chat): Session {
   const session: Session = {
     id: newSessionId(),
     name: chat.title,
+    agent: chat.agent,
     cwd: chat.cwd,
     chatId: chat.chatId,
     source: "import",

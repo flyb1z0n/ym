@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { AGENT_BIN } from "./cursor.ts";
-import { cursorHome } from "./paths.ts";
+import { cursorHome, ymWorktreesDir } from "./paths.ts";
 
 export const namingModel = () => process.env.YM_NAMING_MODEL ?? "gpt-5.3-codex-low-fast";
 const NAMING_TIMEOUT_MS = 20_000;
@@ -62,14 +62,16 @@ export function isGitRepo(cwd: string): boolean {
 
 /**
  * `agent --worktree <name>` reuses an existing worktree of that name, so pick one that is
- * neither a Cursor worktree folder for this repo nor an existing branch.
+ * neither a Cursor or ym worktree folder for this repo nor an existing branch.
  */
 export function uniqueWorktreeName(base: string, cwd: string): string {
   const top = git(cwd, ["rev-parse", "--show-toplevel"]);
   if (top.exitCode !== 0) return base;
-  const worktrees = join(cursorHome(), "worktrees", basename(top.stdout.toString().trim()));
+  const repo = basename(top.stdout.toString().trim());
+  const roots = [join(cursorHome(), "worktrees", repo), join(ymWorktreesDir(), repo)];
   const taken = (name: string) =>
-    existsSync(join(worktrees, name)) || git(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${name}`]).exitCode === 0;
+    roots.some((root) => existsSync(join(root, name))) ||
+    git(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${name}`]).exitCode === 0;
   if (!taken(base)) return base;
   for (let n = 2; n < 100; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
   return `${base}-${Date.now().toString(36)}`;
