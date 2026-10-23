@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { Box, renderToString } from "ink";
-import { createElement } from "react";
+import { PassThrough } from "node:stream";
+import { Box, render, renderToString } from "ink";
+import { createElement, useState } from "react";
 import { LineInput } from "../src/ui/LineInput.tsx";
 import { inputLineCount, promptHighlights, wrapStarts } from "../src/ui/promptText.ts";
 
@@ -15,6 +16,11 @@ describe("wrapStarts", () => {
 
   test("hard-breaks words longer than the width", () => {
     expect(wrapStarts("abcdefghij", 4)).toEqual([0, 4, 8]);
+  });
+
+  test("breaks after every line break, including blank lines", () => {
+    expect(wrapStarts("fix\n\nthe bug", 20)).toEqual([0, 4, 5]);
+    expect(wrapStarts("fix the\nflaky login", 6)).toEqual([0, 4, 8, 14]);
   });
 
   test("counts the cursor cell past a full line", () => {
@@ -58,5 +64,43 @@ describe("LineInput", () => {
     });
     const lines = renderToString(createElement(Box, { width: 5 }, input)).split("\n").map((l) => l.trimEnd());
     expect(lines).toEqual(["four", "five"]);
+  });
+
+  test("shows line breaks as separate lines", () => {
+    const input = createElement(LineInput, {
+      value: "fix\n\nthe bug",
+      width: 20,
+      maxLines: 8,
+      multiline: true,
+      onChange() {},
+    });
+    const lines = renderToString(createElement(Box, { width: 20 }, input)).split("\n").map((l) => l.trimEnd());
+    expect(lines).toEqual(["fix", "", "the bug"]);
+  });
+
+  async function typeInto(multiline: boolean, keys: string[]): Promise<string | undefined> {
+    const stdin = Object.assign(new PassThrough(), { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
+    const stdout = Object.assign(new PassThrough(), { isTTY: true, columns: 40, rows: 10 });
+    stdout.resume();
+    let submitted: string | undefined;
+    function Controlled() {
+      const [value, setValue] = useState("");
+      return createElement(LineInput, { value, onChange: setValue, onSubmit: (v) => (submitted = v), multiline, width: 30, maxLines: 4 });
+    }
+    const app = render(createElement(Controlled), { stdin: stdin as never, stdout: stdout as never, patchConsole: false });
+    for (const k of keys) {
+      stdin.write(k);
+      await Bun.sleep(30);
+    }
+    app.unmount();
+    return submitted;
+  }
+
+  test("Shift-Enter, Option-Enter, and Ctrl-J add line breaks; Enter submits", async () => {
+    expect(await typeInto(true, ["ab", "\x1b[13;2u", "c", "\x1b\r", "d", "\n", "e", "\r"])).toBe("ab\nc\nd\ne");
+  });
+
+  test("single-line inputs submit on Shift-Enter and turn Ctrl-J into a space", async () => {
+    expect(await typeInto(false, ["ab", "\n", "c", "\x1b[13;2u"])).toBe("ab c");
   });
 });

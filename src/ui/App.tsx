@@ -51,7 +51,7 @@ type Mode =
   | { kind: "settings" };
 
 const KEYS =
-  "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
+  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -432,6 +432,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           value={text}
           width={inputWidth}
           maxLines={maxInputLines}
+          multiline
           highlights={promptHighlights}
           placeholder="Type a prompt… (@ for folder, ⇧Tab switches agent)"
           focus={mode.kind === "main" && !switchingSession}

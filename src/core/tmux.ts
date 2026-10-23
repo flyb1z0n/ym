@@ -95,6 +95,9 @@ export function startServer(dashCommand: string[], cwd: string): void {
   ensureDashLayout(cwd);
 }
 
+/** Has tmux ask the outer terminal for extended keys, so it can tell Shift-Enter from Enter. */
+const EXTKEYS_FEATURE = "*:extkeys";
+
 export function configureServer(): void {
   // An escaped "\;" keeps both commands inside the binding; a bare ";" would end bind-key.
   must(["bind-key", "-n", DASH_KEY(), "select-window", "-t", DASH, "\\;", "select-pane", "-t", UI_PANE]);
@@ -111,7 +114,17 @@ export function configureServer(): void {
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
   // Lets the dashboard reach the outer terminal (OSC 9 notifications) even when its window isn't shown; tmux < 3.3 lacks it.
   tmux(["set-option", "-g", "allow-passthrough", "all"]);
+  // Shift-Enter reaches panes that ask for extended keys as CSI u, which Ink parses; tmux < 3.5 only has the xterm format.
+  if (tmux(["set-option", "-s", "extended-keys-format", "csi-u"]).code === 0) {
+    must(["set-option", "-s", "extended-keys", "on"]);
+    if (!tmux(["show-options", "-s", "terminal-features"]).stdout.includes(EXTKEYS_FEATURE)) {
+      must(["set-option", "-as", "terminal-features", EXTKEYS_FEATURE]);
+    }
+  }
 }
+
+/** Whether panes that request extended keys get them in the CSI u format. */
+export const csiUKeys = () => tmux(["show-options", "-sqv", "extended-keys-format"]).stdout.trim() === "csi-u";
 
 export const runningBuild = () => tmux(["show-option", "-gqv", "@ym_build"]).stdout.trim();
 export const recordBuild = (id: string) => void tmux(["set-option", "-g", "@ym_build", id]);

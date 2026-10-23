@@ -16,6 +16,8 @@ interface Props {
   maxLines?: number;
   /** Colored ranges of the value. */
   highlights?: (value: string) => Highlight[];
+  /** Shift-Enter, Option-Enter, and Ctrl-J insert line breaks, and pasted ones are kept; otherwise they become spaces. */
+  multiline?: boolean;
 }
 
 /** Text input with readline-style editing keys. */
@@ -29,6 +31,7 @@ export function LineInput({
   width,
   maxLines = 1,
   highlights,
+  multiline = false,
 }: Props) {
   const [cursor, setCursor] = useState(value.length);
   const previous = useRef(value);
@@ -40,14 +43,19 @@ export function LineInput({
     setCursor((c) => (wasAtEnd ? value.length : Math.min(c, value.length)));
   }, [value]);
 
+  const edit = (next: string, at: number) => {
+    onChange(next);
+    setCursor(at);
+  };
+  const insert = (raw: string) => {
+    const text = multiline ? raw.replace(/\r\n?/g, "\n") : raw.replace(/[\r\n]+/g, " ");
+    edit(value.slice(0, cursor) + text + value.slice(cursor), cursor + text.length);
+  };
+
   useInput(
     (input, key) => {
       if (key.upArrow || key.downArrow || key.tab || key.escape) return;
-      if (key.return) return onSubmit?.(value);
-      const edit = (next: string, at: number) => {
-        onChange(next);
-        setCursor(at);
-      };
+      if (key.return) return multiline && (key.shift || key.meta) ? insert("\n") : onSubmit?.(value);
       if (key.leftArrow) return setCursor(Math.max(0, cursor - 1));
       if (key.rightArrow) return setCursor(Math.min(value.length, cursor + 1));
       if (key.home) return setCursor(0);
@@ -63,20 +71,12 @@ export function LineInput({
         return edit(value.slice(0, start) + value.slice(cursor), start);
       }
       if (key.ctrl || key.meta || !input) return;
-      const text = input.replace(/[\r\n]+/g, " ");
-      edit(value.slice(0, cursor) + text + value.slice(cursor), cursor + text.length);
+      insert(input);
     },
     { isActive: focus },
   );
 
-  usePaste(
-    (pasted) => {
-      const text = (transformPaste?.(pasted) ?? pasted).replace(/[\r\n]+/g, " ");
-      onChange(value.slice(0, cursor) + text + value.slice(cursor));
-      setCursor(cursor + text.length);
-    },
-    { isActive: focus },
-  );
+  usePaste((pasted) => insert(transformPaste?.(pasted) ?? pasted), { isActive: focus });
 
   if (!value) {
     return focus ? (
@@ -90,7 +90,7 @@ export function LineInput({
       </Text>
     );
   }
-  if (width && maxLines > 1) {
+  if (width && (maxLines > 1 || multiline)) {
     return (
       <WrappedText
         value={value}
@@ -139,9 +139,10 @@ function WrappedText({ value, cursor, active, width, maxLines, highlights }: Wra
         const runs: { text: string; color?: string; inverse: boolean }[] = [];
         for (let at = start; at < end; at++) {
           const inverse = active && at === cursor;
+          const char = text[at] === "\n" ? " " : text[at]!;
           const last = runs.at(-1);
-          if (last && last.color === colors[at] && last.inverse === inverse) last.text += text[at];
-          else runs.push({ text: text[at]!, color: colors[at], inverse });
+          if (last && last.color === colors[at] && last.inverse === inverse) last.text += char;
+          else runs.push({ text: char, color: colors[at], inverse });
         }
         return (
           <Text key={start} dimColor={!active} wrap="truncate">

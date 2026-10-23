@@ -22,7 +22,8 @@ Usage:
   ym hook <event> [codex]  internal: called by agent hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
-In the dashboard, type a prompt and press Enter to start an agent. The input starts with the
+In the dashboard, type a prompt and press Enter to start an agent; Shift-Enter, Option-Enter, or
+Ctrl-J adds a line break. The input starts with the
 agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it.
 Tag folders with @. Ctrl-T cycles how the list is grouped.
 ${tmux.DASH_KEY()} returns focus to the list from an agent pane or window.

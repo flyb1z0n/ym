@@ -89,18 +89,18 @@ function resolveTag(tag: string, index: string[]): string | undefined {
   return undefined;
 }
 
-/** Splits "@a @b do X" into folders [a, b] and prompt "do X". */
+/** Splits "@a @b do X" into folders [a, b] and prompt "do X", keeping the rest of its whitespace and line breaks. */
 export function parsePrompt(text: string, index: string[]): ParsedPrompt {
   const folders: string[] = [];
   const errors: string[] = [];
   const prompt = text
-    .replace(/(^|\s)@(\S+)/g, (_m, lead: string, tag: string) => {
+    .replace(/(?<=^|\s)@(\S+)[^\S\n]*/g, (_m, tag: string) => {
       const dir = resolveTag(tag, index);
       if (dir) folders.push(dir);
       else errors.push(`Unknown folder @${tag}`);
-      return lead;
+      return "";
     })
-    .replace(/\s+/g, " ")
+    .replace(/[^\S\n]+$/gm, "")
     .trim();
   return { prompt, folders: [...new Set(folders)], errors };
 }
