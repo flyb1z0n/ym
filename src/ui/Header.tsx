@@ -40,7 +40,7 @@ export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = 
   return (
     <Box flexDirection="column">
       <Box>
-        <Box flexDirection="column" marginRight={1}>
+        <Box flexDirection="column" marginRight={1} flexShrink={0}>
           {logo(greeting({ callMeMain })).map((line, i) => (
             <Text key={i} color="green" dimColor={dimmed}>
               {line}
