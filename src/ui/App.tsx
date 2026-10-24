@@ -50,8 +50,9 @@ type Mode =
   | { kind: "import"; chats: Chat[] }
   | { kind: "settings" };
 
-const KEYS =
-  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here";
+const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^/ all keys";
+const KEYS_FULL =
+  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^/ fewer keys";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -98,6 +99,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   /** Agent for the prompt being typed; Shift-Tab cycles it, and each launch resets it to the default. */
   const [agent, setAgent] = useState(() => settings.defaultAgent);
   const [switchingSession, setSwitchingSession] = useState(false);
+  const [showAllKeys, setShowAllKeys] = useState(false);
   const previousSelection = useRef<string | undefined>(undefined);
 
   const groups = useMemo(() => groupRows(filterRows(rows, tab), group), [rows, tab, group]);
@@ -242,8 +244,13 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         const i = TABS.findIndex((t) => t.id === tab);
         return setTab(TABS[(i + 1) % TABS.length]!.id);
       }
-      if (key.escape) return setDismissed(text);
+      if (key.escape) {
+        setShowAllKeys(false);
+        return setDismissed(text);
+      }
       if (!key.ctrl) return;
+      // Terminals send Ctrl-/ as Ctrl-_.
+      if (input === "_") return setShowAllKeys((v) => !v);
       if (input === "c") {
         if (text) {
           setImages([]);
@@ -332,7 +339,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const targetIsError = errors.length > 0 || showFailure || showCodexHint;
   const agentPrefix = `${AGENT_NAMES[agent]} › `;
   const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length);
-  const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(KEYS, columns);
+  const keys = showAllKeys ? KEYS_FULL : KEYS_SHORT;
+  const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(keys, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
   const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
   const listHeight = Math.max(MIN_LIST_HEIGHT, termRows - fixedLines - inputLines);
@@ -452,7 +460,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       <Text color={targetIsError ? "red" : undefined} dimColor={modalOpen || !targetIsError} wrap="truncate">
         {target}
       </Text>
-      <Text dimColor={modalOpen || undefined}>{KEYS}</Text>
+      <Text dimColor={modalOpen || undefined}>{keys}</Text>
       {mode.kind === "rename" ? (
         <RenameDialog
           value={mode.text}

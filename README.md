@@ -63,6 +63,7 @@ CLI commands:
 - `Ctrl-t` cycles grouping mode.
 - `Ctrl-p` pins the selected session to a Pinned group at the top of the list (press again to unpin).
 - `Ctrl-s` opens settings.
+- The footer lists the essential keys; `Ctrl-/` expands it to every shortcut (press again or `Esc` to collapse).
 
 > Note: keybindings and UI details evolve quickly; run `ym help` and check source under `src/ui` for the latest behavior.
 
