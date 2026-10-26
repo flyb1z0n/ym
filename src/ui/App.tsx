@@ -26,7 +26,7 @@ import {
 import { AGENT_COLORS, AGENT_NAMES, agentAvailable, agentOf, nextAgent, notFound } from "../core/agents.ts";
 import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
-import { scanAllChats, type Chat } from "../core/importer.ts";
+import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
@@ -35,7 +35,7 @@ import { tildify } from "./format.ts";
 import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
-import { inputLineCount, promptHighlights } from "./promptText.ts";
+import { inputLineCount, promptHighlights, repeatInput } from "./promptText.ts";
 import { SessionList } from "./SessionList.tsx";
 import { SettingsView } from "./SettingsView.tsx";
 import { useDashboard } from "./useDashboard.ts";
@@ -52,7 +52,7 @@ type Mode =
 
 const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^/ all keys";
 const KEYS_FULL =
-  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^/ fewer keys";
+  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^/ fewer keys";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -270,6 +270,15 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       }
       if (!current) return;
       const { session } = current;
+      if (input === "n") {
+        const fallback = agentOf(session) === "cursor" && session.chatId ? cursorFirstPrompt(session.chatId) : undefined;
+        const repeat = repeatInput(session, fallback);
+        if (!repeat) return setFailure("This session's prompt wasn't saved, so it can't be reused.");
+        setText(repeat.text);
+        setImages(repeat.images);
+        setAgent(agentOf(session));
+        return setFailure(undefined);
+      }
       if (input === "p") return attempt(() => togglePin(session));
       if (input === "r") return setMode({ kind: "rename", id: session.id, text: session.name });
       if (input === "l") return setMode({ kind: "highlight", id: session.id, color: session.highlightColor });

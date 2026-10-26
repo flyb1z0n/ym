@@ -25,6 +25,10 @@ export interface Session {
   cwd: string;
   /** Extra workspace roots, passed as --add-dir. */
   addDirs?: string[];
+  /** Prompt the session was started with, absent on imported and older sessions. */
+  prompt?: string;
+  /** Files behind the prompt's `[Image #N]` markers. */
+  images?: string[];
   /**
    * Empty while `agent create-chat` is still running for a freshly started session.
    * Codex has no create-chat: its id arrives from the SessionStart hook after launch.

@@ -61,6 +61,7 @@ CLI commands:
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.
 - `Tab` switches between Sessions and Archived.
 - `Ctrl-t` cycles grouping mode.
+- `Ctrl-n` fills the prompt with the selected session's prompt, folders, and agent, so `Enter` starts another session like it (edit it first if you like).
 - `Ctrl-p` pins the selected session to a Pinned group at the top of the list (press again to unpin).
 - `Ctrl-s` opens settings.
 - The footer lists the essential keys; `Ctrl-/` expands it to every shortcut (press again or `Esc` to collapse).
