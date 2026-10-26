@@ -50,9 +50,9 @@ type Mode =
   | { kind: "import"; chats: Chat[] }
   | { kind: "settings" };
 
-const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^/ all keys";
+const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · Ctrl-/ show all shortcuts";
 const KEYS_FULL =
-  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^/ fewer keys";
+  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^ = Ctrl · Ctrl-/ or Esc hide";
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
