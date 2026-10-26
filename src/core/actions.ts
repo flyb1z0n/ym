@@ -107,6 +107,8 @@ export async function startSession(
     createdAt: Date.now(),
   };
   if (addDirs.length) draft.addDirs = addDirs;
+  if (prompt) draft.prompt = prompt;
+  if (images.length) draft.images = input.images;
   const useWorktree = settings.useWorktrees && isGitRepo(cwd);
   if (useWorktree) draft.worktree = id;
   saveSession(draft);

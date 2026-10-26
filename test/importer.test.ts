@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launchCommand } from "../src/core/cursor.ts";
-import { scanChats } from "../src/core/importer.ts";
+import { cursorFirstPrompt, scanChats } from "../src/core/importer.ts";
 
 let root: string;
 beforeEach(() => {
@@ -38,6 +38,14 @@ describe("importer", () => {
       ["b", "Store Title", "/p/one"],
       ["c", "first prompt", "/p/two"],
     ]);
+  });
+
+  test("a chat's first prompt is the oldest in its history", () => {
+    chat("h1", "a", { cwd: "/p/one" });
+    chat("h2", "b", { cwd: "/p/two" }, { history: ["latest", "first"] });
+    expect(cursorFirstPrompt("b", root)).toBe("first");
+    expect(cursorFirstPrompt("a", root)).toBeUndefined();
+    expect(cursorFirstPrompt("missing", root)).toBeUndefined();
   });
 });
 

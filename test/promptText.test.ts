@@ -3,7 +3,9 @@ import { PassThrough } from "node:stream";
 import { Box, render, renderToString } from "ink";
 import { createElement, useState } from "react";
 import { LineInput } from "../src/ui/LineInput.tsx";
-import { inputLineCount, promptHighlights, wrapStarts } from "../src/ui/promptText.ts";
+import { homedir } from "node:os";
+import type { Session } from "../src/core/types.ts";
+import { inputLineCount, promptHighlights, repeatInput, wrapStarts } from "../src/ui/promptText.ts";
 
 describe("wrapStarts", () => {
   test("keeps short text on one line", () => {
@@ -40,6 +42,35 @@ describe("promptHighlights", () => {
 
   test("ignores @ inside words", () => {
     expect(promptHighlights("mail me@example.com")).toEqual([]);
+  });
+});
+
+describe("repeatInput", () => {
+  const session = (extra: Partial<Session> = {}): Session => ({
+    id: "abcdef12",
+    name: "s",
+    cwd: `${homedir()}/dev/app`,
+    addDirs: ["/tmp/lib"],
+    chatId: "c",
+    source: "ym",
+    createdAt: 0,
+    ...extra,
+  });
+
+  test("tags the session's folders before its saved prompt and keeps its images", () => {
+    expect(repeatInput(session({ prompt: "fix\n[Image #1] this", images: ["/tmp/a.png"] }))).toEqual({
+      text: "@~/dev/app @/tmp/lib fix\n[Image #1] this",
+      images: ["/tmp/a.png"],
+    });
+  });
+
+  test("uses the fallback without its image markers when no prompt was saved", () => {
+    expect(repeatInput(session(), "[Image #1] fix this")).toEqual({ text: "@~/dev/app @/tmp/lib fix this", images: [] });
+  });
+
+  test("returns nothing without a prompt", () => {
+    expect(repeatInput(session())).toBeUndefined();
+    expect(repeatInput(session(), "[Image #1]")).toBeUndefined();
   });
 });
 

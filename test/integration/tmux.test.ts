@@ -203,6 +203,7 @@ describe("tmux integration with a stub agent", () => {
     const image = join(plain, "shot one.png");
     writeFileSync(image, "x");
     const s = await actions.startSession({ prompt: "look at [Image #1]", folders: [dir], images: [image] });
+    expect(s).toMatchObject({ prompt: "look at [Image #1]", images: [image] });
     await waitFor(s.id, "your_turn");
     const screen = tmux.capturePane(pane(s.id)!.paneId);
     expect(screen).toContain(`got: look at ${plain}/shot\\ one.png`);

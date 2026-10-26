@@ -52,6 +52,16 @@ function firstPrompt(dir: string): string | undefined {
   return Array.isArray(history) && typeof history[0] === "string" ? history[0] : undefined;
 }
 
+/** The prompt a Cursor chat started with; its history lists prompts newest first. */
+export function cursorFirstPrompt(chatId: string, root = join(cursorHome(), "chats")): string | undefined {
+  if (!existsSync(root)) return undefined;
+  for (const hash of readdirSync(root)) {
+    const history = readJson<unknown>(join(root, hash, chatId, "prompt_history.json"));
+    if (Array.isArray(history) && typeof history.at(-1) === "string") return history.at(-1);
+  }
+  return undefined;
+}
+
 export function scanChats(root = join(cursorHome(), "chats")): Chat[] {
   if (!existsSync(root)) return [];
   const chats: Chat[] = [];

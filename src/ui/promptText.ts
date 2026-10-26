@@ -1,3 +1,6 @@
+import type { Session } from "../core/types.ts";
+import { tildify } from "./format.ts";
+
 export interface Highlight {
   start: number;
   end: number;
@@ -19,6 +22,17 @@ export function promptHighlights(text: string): Highlight[] {
     color: "magenta",
   }));
   return [...folders, ...images];
+}
+
+/**
+ * Input that starts another session like `s`: its folders as @tags, then its prompt.
+ * `fallback` stands in for a prompt ym didn't save; it has no images, so its markers are dropped.
+ */
+export function repeatInput(s: Session, fallback?: string): { text: string; images: string[] } | undefined {
+  const prompt = s.prompt ?? fallback?.replace(/\[Image #\d+\][^\S\n]*/g, "").trim();
+  if (!prompt) return undefined;
+  const tags = [s.cwd, ...(s.addDirs ?? [])].map((dir) => `@${tildify(dir)} `).join("");
+  return { text: tags + prompt, images: s.prompt ? (s.images ?? []) : [] };
 }
 
 /**
