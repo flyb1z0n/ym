@@ -69,6 +69,10 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("default");
   });
 
+  test("panes can be focused by clicking, even without a tmux.conf that enables the mouse", () => {
+    expect(tmux.tmux(["show-option", "-gv", "mouse"]).stdout.trim()).toBe("on");
+  });
+
   test("panes are told they can use truecolor, even when the client's env lacks COLORTERM", () => {
     expect(tmux.tmux(["show-environment", "-g", "COLORTERM"]).stdout.trim()).toBe("COLORTERM=truecolor");
   });

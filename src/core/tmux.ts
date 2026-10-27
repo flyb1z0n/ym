@@ -110,6 +110,9 @@ export function configureServer(): void {
     must(["set-option", "-g", "window-style", "fg=colour245"]);
   }
   must(["set-option", "-g", "window-active-style", "default"]);
+  // Clicking a pane to focus it needs mouse mode, which tmux leaves off unless the user's tmux.conf turns it on;
+  // ssh hosts often have no tmux.conf. Shift-drag (Option-drag in iTerm2) still selects text natively.
+  must(["set-option", "-g", "mouse", "on"]);
   // Agents pick truecolor themes only when COLORTERM says so, and ssh doesn't forward it from the local terminal.
   // tmux itself renders truecolor and falls back to the nearest 256 colour for terminals without RGB.
   must(["set-environment", "-g", "COLORTERM", "truecolor"]);
