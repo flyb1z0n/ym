@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ymHome } from "../core/paths.ts";
 import { REMOTE_ENV } from "../core/tmux.ts";
-import { rememberHost } from "./hosts.ts";
+import { rememberHost, sshDestination } from "./hosts.ts";
 import { PasteRewriter } from "./pastes.ts";
 import { SSH_BIN, cachedUploader, sshUploader, uploadImages } from "./upload.ts";
 
@@ -20,11 +20,11 @@ function log(message: string): void {
 
 /**
  * Runs the remote `ym` over ssh inside a PTY, uploading images dropped on the local terminal
- * so the remote side gets paths that exist there. `args` are ssh's, destination last.
+ * so the remote side gets paths that exist there. `args` are ssh's, including the destination.
  */
 export async function runSsh(args: string[]): Promise<number> {
-  const destination = args.at(-1);
-  if (!destination || destination.startsWith("-")) throw new Error("usage: ym ssh [ssh options] <host>");
+  const destination = sshDestination(args);
+  if (!destination) throw new Error("usage: ym ssh [ssh options] <host>");
   const { stdin, stdout } = process;
   if (!stdin.isTTY || !stdout.isTTY) throw new Error("ym ssh needs a terminal.");
 

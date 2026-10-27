@@ -78,9 +78,10 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the dashboard knows whether the latest client attached through ym ssh", async () => {
+    const { [tmux.REMOTE_ENV]: _, ...localEnv } = process.env;
     const attach = async (env: Record<string, string>) => {
       const client = Bun.spawn(["tmux", "-L", tmux.SOCKET(), "attach-session", "-t", "=ym"], {
-        env: { ...process.env, TERM: "xterm", ...env },
+        env: { ...localEnv, TERM: "xterm", ...env },
         terminal: { cols: 80, rows: 24, data() {} },
       });
       const end = Date.now() + 5000;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import chalk from "chalk";
 import { renderToString } from "ink";
 import { Header } from "../src/ui/Header.tsx";
 
@@ -22,5 +23,23 @@ describe("Header", () => {
       ).split("\n");
     expect(render("devbox")[0]).toMatch(/^╭─+╮ ⇄ devbox {2}0 ready/);
     expect(render()[0]).toMatch(/^╭─+╮ 0 ready/);
+  });
+
+  test("the logo border turns magenta through ym ssh while the greeting stays green", () => {
+    const level = chalk.level;
+    chalk.level = 1;
+    try {
+      const render = (remote?: string) =>
+        renderToString(
+          <Header rows={[]} tab="sessions" counts={{ sessions: 0, archived: 0 } as never} group="status" remote={remote} />,
+          { columns: 80 },
+        ).split("\n");
+      const [top, middle] = render("devbox");
+      expect(top).toStartWith("\x1b[35m╭");
+      expect(middle).toStartWith("\x1b[35m│ \x1b[32mYes, Master!\x1b[35m │");
+      expect(render()[0]).toStartWith("\x1b[32m╭");
+    } finally {
+      chalk.level = level;
+    }
   });
 });

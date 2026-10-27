@@ -97,6 +97,14 @@ describe("ym ssh", () => {
     await proc.exited;
   });
 
+  test("the remote ym is told the host, not an option value, when options follow the host", async () => {
+    const { proc, out } = start(["me@devbox", "-p", "2222"], `sh -c 'echo "via $YM_SSH."; sleep 5'`);
+    await waitFor(out, /via me@devbox\./);
+    expect(readFileSync(argsLog, "utf8").split("\n")[0]).toMatch(/RemoteCommand=none me@devbox -p 2222 YM_SSH=me@devbox /);
+    proc.kill();
+    await proc.exited;
+  });
+
   test("a host is remembered with its options once ssh connects", async () => {
     const { proc } = start(["-p", "2222", "devbox"]);
     await waitFor(savedArgs, /devbox/);
