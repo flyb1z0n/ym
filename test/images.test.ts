@@ -2,7 +2,15 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { attachPastedImages, promptPastes, referencedImages, stripImageMarkers } from "../src/core/images.ts";
+import {
+  attachPastedImages,
+  escapePath,
+  imagePaths,
+  promptPastes,
+  referencedImages,
+  replaceImagePaths,
+  stripImageMarkers,
+} from "../src/core/images.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "ym-images-")));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -43,6 +51,15 @@ describe("images", () => {
       " and [Image #9]",
     ]);
     expect(promptPastes("[Image #1]", [plain])).toEqual([plain]);
+  });
+
+  test("image paths in a paste are listed once each, and can be swapped for anything", () => {
+    const pasted = `${plain} ${spaced.replace(/ /g, "\\ ")} ${join(root, "notes.txt")} '${plain}'`;
+    expect(imagePaths(pasted)).toEqual([plain, spaced]);
+    expect(replaceImagePaths(pasted, (p) => (p === plain ? "P" : undefined))).toBe(
+      `P ${spaced.replace(/ /g, "\\ ")} ${join(root, "notes.txt")} P`,
+    );
+    expect(escapePath("/a b/(c).png")).toBe("/a\\ b/\\(c\\).png");
   });
 
   test("only images still referenced by a marker count", () => {

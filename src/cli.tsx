@@ -21,6 +21,7 @@ Usage:
   ym              open the dashboard (starts the ym tmux server if needed)
   ym install      register ym's status hooks in ~/.cursor/hooks.json and ~/.codex/hooks.json
   ym uninstall    remove ym's hooks from both
+  ym ssh [ssh options] <host>  open ym on <host> over ssh; images dropped on this terminal are uploaded
   ym hook <event> [codex]  internal: called by agent hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
@@ -78,6 +79,14 @@ switch (command) {
   case "hook":
     await runHook(args[0] ?? "", args[1]);
     break;
+  case "ssh": {
+    const { runSsh } = await import("./ssh/client.ts");
+    try {
+      process.exit(await runSsh(args));
+    } catch (e) {
+      fail((e as Error).message);
+    }
+  }
   case "install": {
     try {
       const wasRegistered = hooksRegistered();

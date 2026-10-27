@@ -50,7 +50,16 @@ CLI commands:
 - `ym` - open dashboard (starts/attaches to the `ym` tmux server)
 - `ym install` - register hooks (Cursor and Codex)
 - `ym uninstall` - remove hooks (Cursor and Codex)
+- `ym ssh [ssh options] <host>` - open `ym` on a remote machine (see below)
 - `ym help` - show help
+
+## Over SSH
+
+Dropping an image on the terminal pastes its local path, which doesn't exist on a remote machine. Run `ym ssh <host>` on your laptop instead of `ssh <host>` and then `ym`: it runs the remote `ym` over `ssh`, uploads each image you drop to `~/.ym/uploads` on the remote (over the same connection), and pastes the remote path, so it attaches as `[Image #N]` as it would locally. It works in any terminal with bracketed paste, and in agent panes too.
+
+- `ym` must be installed on both machines; the remote one is started with `"$SHELL" -lc ym` (override with `YM_REMOTE_CMD`).
+- Options before the host go to `ssh` (e.g. `ym ssh -p 2222 devbox`); `~/.ssh/config` applies as usual.
+- Uploads older than 7 days are deleted on the next upload. Failed uploads leave the local path as is and are logged to `~/.ym/ssh.log`.
 
 ## Dashboard Basics
 
