@@ -5,6 +5,9 @@ export const SESSION = "ym";
 export const DASH_WINDOW = "dash";
 export const DASH_KEY = () => process.env.YM_DASH_KEY ?? "C-g";
 
+/** Shows a tmux key name the way the dashboard writes shortcuts: `C-g` becomes `^G`. */
+export const keyLabel = (key: string) => key.replace(/^C-(.)$/, (_, k: string) => `^${k.toUpperCase()}`);
+
 const DASH = `${SESSION}:=${DASH_WINDOW}`;
 const UI_PANE = `${DASH}.0`;
 const IDLE_SCRIPT =
@@ -102,7 +105,7 @@ export function configureServer(): void {
   // An escaped "\;" keeps both commands inside the binding; a bare ";" would end bind-key.
   must(["bind-key", "-n", DASH_KEY(), "select-window", "-t", DASH, "\\;", "select-pane", "-t", UI_PANE]);
   // Global options are safe here: the ym socket is a private tmux server.
-  must(["set-option", "-g", "status-right", ` ${DASH_KEY()}: back to list `]);
+  must(["set-option", "-g", "status-right", ` ${keyLabel(DASH_KEY())}: back to list `]);
   must(["set-option", "-g", "status-left", " ym "]);
   must(["set-option", "-g", "pane-active-border-style", "fg=green"]);
   // dim= fades every colour in unfocused panes; older tmux lacks it and can only grey default-coloured text.
