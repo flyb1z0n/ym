@@ -7,9 +7,10 @@ import { STATUS_STYLE } from "./format.ts";
 export const greeting = ({ callMeMain }: Pick<Settings, "callMeMain">) =>
   `Yes, ${callMeMain ? "Main" : "Master"}!`;
 
+/** Rows of the boxed logo as [border, text, border] pieces, so the border can be colored apart from the text. */
 const logo = (text: string) => {
   const rule = "─".repeat(text.length + 2);
-  return [`╭${rule}╮`, `│ ${text} │`, `╰${rule}╯`];
+  return [[`╭${rule}╮`, "", ""], ["│ ", text, " │"], [`╰${rule}╯`, "", ""]] as const;
 };
 
 const SUMMARY: { status: Status; label: string }[] = [
@@ -43,9 +44,11 @@ export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = 
     <Box flexDirection="column">
       <Box>
         <Box flexDirection="column" marginRight={1} flexShrink={0}>
-          {logo(greeting({ callMeMain })).map((line, i) => (
-            <Text key={i} color="green" dimColor={dimmed}>
-              {line}
+          {logo(greeting({ callMeMain })).map(([left, text, right], i) => (
+            <Text key={i} color={remote ? "magenta" : "green"} dimColor={dimmed}>
+              {left}
+              <Text color="green">{text}</Text>
+              {right}
             </Text>
           ))}
         </Box>

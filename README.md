@@ -59,7 +59,7 @@ Dropping an image on the terminal pastes its local path, which doesn't exist on 
 
 - `ym` must be installed on both machines; the remote one is started with `"$SHELL" -lc ym` (override with `YM_REMOTE_CMD`).
 - Options before the host go to `ssh` (e.g. `ym ssh -p 2222 devbox`); `~/.ssh/config` applies as usual.
-- The dashboard shows `⇄ <host>` next to the logo while you're on it through `ym ssh`. It follows the most recent attach, so attaching on the remote machine itself clears it.
+- The dashboard shows `⇄ <host>` next to a purple-bordered logo while you're on it through `ym ssh`. It follows the most recent attach, so attaching on the remote machine itself clears it.
 - Each `ym ssh` that connects is saved with its options to `~/.ym/ssh-hosts.json`. Plain `ym ssh` then lists the saved hosts, most recent first: type to filter, `Enter` connects, `Ctrl-x` forgets the selected one after you confirm with `y`, `Esc` cancels.
 - Uploads older than 7 days are deleted on the next upload. Failed uploads leave the local path as is and are logged to `~/.ym/ssh.log`.
 
