@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { nextAgent } from "../src/core/agents.ts";
 import { settingsFile } from "../src/core/paths.ts";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../src/core/settings.ts";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, toggleAgent, type Settings } from "../src/core/settings.ts";
 import { greeting } from "../src/ui/Header.tsx";
 
 let home: string;
@@ -19,7 +20,7 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees, worktree naming and session naming default to enabled, Cursor is the default agent, and auto-run is off", () => {
+  test("worktrees, worktree naming and session naming default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
       useWorktrees: true,
@@ -27,17 +28,19 @@ describe("settings", () => {
       nameSessions: true,
       callMeMain: false,
       defaultAgent: "cursor",
+      enabledAgents: ["cursor", "codex"],
       cursorAutoRun: false,
     });
   });
 
   test("settings round-trip through config.json", () => {
-    const settings = {
+    const settings: Settings = {
       useWorktrees: false,
       nameWorktrees: false,
       nameSessions: false,
       callMeMain: true,
-      defaultAgent: "codex" as const,
+      defaultAgent: "codex",
+      enabledAgents: ["codex"],
       cursorAutoRun: true,
     };
     saveSettings(settings);
@@ -54,6 +57,37 @@ describe("settings", () => {
   test("an unknown default agent falls back to Cursor", () => {
     writeFileSync(settingsFile(), JSON.stringify({ defaultAgent: "claude" }));
     expect(loadSettings().defaultAgent).toBe("cursor");
+  });
+
+  test("enabled agents drop unknown names, keep the agent order, and fall back to all when none are left", () => {
+    writeFileSync(settingsFile(), JSON.stringify({ enabledAgents: ["claude", "codex", "cursor", "codex"] }));
+    expect(loadSettings().enabledAgents).toEqual(["cursor", "codex"]);
+
+    writeFileSync(settingsFile(), JSON.stringify({ enabledAgents: ["claude"] }));
+    expect(loadSettings().enabledAgents).toEqual(["cursor", "codex"]);
+
+    writeFileSync(settingsFile(), JSON.stringify({ enabledAgents: "codex" }));
+    expect(loadSettings().enabledAgents).toEqual(["cursor", "codex"]);
+  });
+
+  test("a default agent that's turned off moves to the first enabled agent", () => {
+    writeFileSync(settingsFile(), JSON.stringify({ defaultAgent: "cursor", enabledAgents: ["codex"] }));
+    expect(loadSettings()).toMatchObject({ defaultAgent: "codex", enabledAgents: ["codex"] });
+  });
+
+  test("turning agents off keeps at least one on and moves the default off a disabled agent", () => {
+    const codexOff = toggleAgent(DEFAULT_SETTINGS, "codex");
+    expect(codexOff).toMatchObject({ enabledAgents: ["cursor"], defaultAgent: "cursor" });
+    expect(toggleAgent(codexOff, "cursor")).toBe(codexOff);
+    expect(toggleAgent(codexOff, "codex")).toMatchObject({ enabledAgents: ["cursor", "codex"], defaultAgent: "cursor" });
+    expect(toggleAgent(DEFAULT_SETTINGS, "cursor")).toMatchObject({ enabledAgents: ["codex"], defaultAgent: "codex" });
+  });
+
+  test("Shift-Tab cycles only through the enabled agents", () => {
+    expect(nextAgent("cursor", ["cursor", "codex"])).toBe("codex");
+    expect(nextAgent("codex", ["cursor", "codex"])).toBe("cursor");
+    expect(nextAgent("cursor", ["cursor"])).toBe("cursor");
+    expect(nextAgent("cursor", ["codex"])).toBe("codex");
   });
 
   test("malformed and incomplete config falls back to defaults", () => {

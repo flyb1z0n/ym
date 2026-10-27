@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { isAgent } from "./agents.ts";
+import { AGENTS, isAgent } from "./agents.ts";
 import { settingsFile, ymHome } from "./paths.ts";
 import type { Agent } from "./types.ts";
 
@@ -11,8 +11,10 @@ export interface Settings {
   nameSessions: boolean;
   /** Greet the user as "Main" instead of "Master". */
   callMeMain: boolean;
-  /** Agent for prompts without a `#agent` tag. */
+  /** Agent for prompts without a `#agent` tag; always one of `enabledAgents`. */
   defaultAgent: Agent;
+  /** Agents Shift-Tab cycles through, in `AGENTS` order; never empty. */
+  enabledAgents: Agent[];
   /** Launch Cursor with `--force` so it runs commands without asking. */
   cursorAutoRun: boolean;
 }
@@ -23,24 +25,42 @@ export const DEFAULT_SETTINGS: Settings = {
   nameSessions: true,
   callMeMain: false,
   defaultAgent: "cursor",
+  enabledAgents: [...AGENTS],
   cursorAutoRun: false,
 };
 
 const flag = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
 
+const agentList = (value: unknown): Agent[] => {
+  const listed = Array.isArray(value) ? AGENTS.filter((a) => value.includes(a)) : [];
+  return listed.length ? listed : [...DEFAULT_SETTINGS.enabledAgents];
+};
+
+/** Turns `agent` on or off; the last enabled agent stays on, and the default moves off a disabled agent. */
+export function toggleAgent(settings: Settings, agent: Agent): Settings {
+  const on = settings.enabledAgents.includes(agent);
+  if (on && settings.enabledAgents.length === 1) return settings;
+  const enabledAgents = AGENTS.filter((a) => (a === agent ? !on : settings.enabledAgents.includes(a)));
+  const defaultAgent = enabledAgents.includes(settings.defaultAgent) ? settings.defaultAgent : enabledAgents[0]!;
+  return { ...settings, enabledAgents, defaultAgent };
+}
+
 export function loadSettings(): Settings {
   try {
     const value = JSON.parse(readFileSync(settingsFile(), "utf8")) as Partial<Settings>;
+    const enabledAgents = agentList(value.enabledAgents);
+    const defaultAgent = isAgent(value.defaultAgent) ? value.defaultAgent : DEFAULT_SETTINGS.defaultAgent;
     return {
       useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
       nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
       nameSessions: flag(value.nameSessions, DEFAULT_SETTINGS.nameSessions),
       callMeMain: flag(value.callMeMain, DEFAULT_SETTINGS.callMeMain),
-      defaultAgent: isAgent(value.defaultAgent) ? value.defaultAgent : DEFAULT_SETTINGS.defaultAgent,
+      defaultAgent: enabledAgents.includes(defaultAgent) ? defaultAgent : enabledAgents[0]!,
+      enabledAgents,
       cursorAutoRun: flag(value.cursorAutoRun, DEFAULT_SETTINGS.cursorAutoRun),
     };
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, enabledAgents: [...DEFAULT_SETTINGS.enabledAgents] };
   }
 }
 

@@ -11,7 +11,9 @@ export const AGENT_COLORS: Record<Agent, string> = { cursor: "blue", codex: "mag
 
 export const isAgent = (value: unknown): value is Agent => AGENTS.includes(value as Agent);
 
-export const nextAgent = (agent: Agent): Agent => AGENTS[(AGENTS.indexOf(agent) + 1) % AGENTS.length]!;
+/** The agent after `agent` in `among`; the first of `among` when `agent` isn't in it. */
+export const nextAgent = (agent: Agent, among: readonly Agent[] = AGENTS): Agent =>
+  among[(among.indexOf(agent) + 1) % among.length]!;
 
 export const agentOf = (s: Pick<Session, "agent">): Agent => s.agent ?? "cursor";
 

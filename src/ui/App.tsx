@@ -50,8 +50,10 @@ type Mode =
   | { kind: "import"; chats: Chat[] }
   | { kind: "settings" };
 
-const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^/ all keys";
-const KEYS_FULL = `⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ${keyLabel(DASH_KEY())} back here · ^/ fewer keys`;
+const AGENT_KEY = " · ⇧Tab agent";
+const keysShort = (agentKey: string) => `⏎ open · ↑↓ select · @ folder${agentKey} · ^/ all keys`;
+const keysFull = (agentKey: string) =>
+  `⏎ open · ↑↓ select · @ folder${agentKey} · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ${keyLabel(DASH_KEY())} back here · ^/ fewer keys`;
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -238,7 +240,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return suggestions.length ? setSuggestion(Math.min(suggestions.length - 1, suggestionIndex + 1)) : select(index + 1);
       }
       if (key.tab) {
-        if (key.shift) return setAgent(nextAgent(agent));
+        if (key.shift) return setAgent(nextAgent(agent, settings.enabledAgents));
         if (suggestions.length) return acceptSuggestion();
         const i = TABS.findIndex((t) => t.id === tab);
         return setTab(TABS[(i + 1) % TABS.length]!.id);
@@ -324,7 +326,9 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           try {
             saveSettings(next);
             setSettings(next);
-            if (next.defaultAgent !== settings.defaultAgent) setAgent(next.defaultAgent);
+            if (next.defaultAgent !== settings.defaultAgent || !next.enabledAgents.includes(agent)) {
+              setAgent(next.defaultAgent);
+            }
           } catch (e) {
             setFailure((e as Error).message);
           }
@@ -345,9 +349,11 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           ? "Codex isn't reporting status yet: trust ym's hooks in Codex (/hooks)."
           : `in ${folders.map(tildify).join(" + ")}`);
   const targetIsError = errors.length > 0 || showFailure || showCodexHint;
-  const agentPrefix = `${AGENT_NAMES[agent]} › `;
+  const canSwitchAgent = settings.enabledAgents.length > 1;
+  // Ctrl-N can bring back a disabled agent, so name it even when it's the only one on.
+  const agentPrefix = canSwitchAgent || agent !== settings.defaultAgent ? `${AGENT_NAMES[agent]} › ` : "";
   const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length);
-  const keys = showAllKeys ? KEYS_FULL : KEYS_SHORT;
+  const keys = (showAllKeys ? keysFull : keysShort)(canSwitchAgent ? AGENT_KEY : "");
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(keys, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
   const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
@@ -458,7 +464,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           maxLines={maxInputLines}
           multiline
           highlights={promptHighlights}
-          placeholder="Type a prompt… (@ for folder, ⇧Tab switches agent)"
+          placeholder={`Type a prompt… (@ for folder${canSwitchAgent ? ", ⇧Tab switches agent" : ""})`}
           focus={mode.kind === "main" && !switchingSession}
           onChange={(v) => {
             setText(v);

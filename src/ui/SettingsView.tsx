@@ -1,8 +1,9 @@
 import { Box, Text, useInput } from "ink";
 import { useState } from "react";
-import { AGENT_NAMES, nextAgent } from "../core/agents.ts";
+import { AGENT_NAMES, AGENTS, nextAgent } from "../core/agents.ts";
 import { namingModel } from "../core/naming.ts";
-import type { Settings } from "../core/settings.ts";
+import { toggleAgent, type Settings } from "../core/settings.ts";
+import type { Agent } from "../core/types.ts";
 import { greeting } from "./Header.tsx";
 
 interface Props {
@@ -25,15 +26,20 @@ interface Row {
   section?: string;
 }
 
-const ROWS: Row[] = [
-  {
-    key: "defaultAgent",
-    label: "Default agent",
-    describe: (s) =>
-      `New prompts start on ${AGENT_NAMES[s.defaultAgent]}; Shift-Tab in the prompt switches the agent for one session.`,
-    value: (s) => AGENT_NAMES[s.defaultAgent],
-    next: (s) => ({ ...s, defaultAgent: nextAgent(s.defaultAgent) }),
+const agentRow = (agent: Agent): Row => ({
+  key: "enabledAgents",
+  section: "Agents",
+  label: AGENT_NAMES[agent],
+  describe: (s) => {
+    if (!s.enabledAgents.includes(agent)) return "Shift-Tab skips it.";
+    if (s.enabledAgents.length === 1) return "The only agent on, so the prompt doesn't show its name. Turn on another to switch.";
+    return "Shift-Tab in the prompt can switch to it.";
   },
+  value: (s) => (s.enabledAgents.includes(agent) ? "on" : "off"),
+  next: (s) => toggleAgent(s, agent),
+});
+
+const ROWS: Row[] = [
   {
     key: "useWorktrees",
     label: "Use worktrees for new sessions",
@@ -65,6 +71,18 @@ const ROWS: Row[] = [
     label: "Call me Main instead of Master",
     describe: (s) => `The header says "${greeting(s)}"`,
   },
+  {
+    key: "defaultAgent",
+    section: "Agents",
+    label: "Default agent",
+    describe: (s) =>
+      s.enabledAgents.length === 1
+        ? `New prompts start on ${AGENT_NAMES[s.defaultAgent]}, the only agent on.`
+        : `New prompts start on ${AGENT_NAMES[s.defaultAgent]}; Shift-Tab in the prompt switches the agent for one session.`,
+    value: (s) => AGENT_NAMES[s.defaultAgent],
+    next: (s) => ({ ...s, defaultAgent: nextAgent(s.defaultAgent, s.enabledAgents) }),
+  },
+  ...AGENTS.map(agentRow),
   {
     key: "cursorAutoRun",
     section: "Cursor",
@@ -98,7 +116,7 @@ export function SettingsView({ settings, width, height, onChange, onClose }: Pro
       </Text>
       <Text dimColor>Changes are saved immediately.</Text>
       {ROWS.map((row, i) => (
-        <Box key={row.key} flexDirection="column" marginTop={1}>
+        <Box key={`${row.section ?? ""}/${row.label}`} flexDirection="column" marginTop={1}>
           {row.section && row.section !== ROWS[i - 1]?.section && (
             <Box marginBottom={1}>
               <Text bold>{row.section}</Text>

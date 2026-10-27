@@ -20,7 +20,7 @@ chmodSync(process.env.YM_CODEX_BIN, 0o755);
 
 const actions = await import("../../src/core/actions.ts");
 const tmux = await import("../../src/core/tmux.ts");
-const { saveSettings } = await import("../../src/core/settings.ts");
+const { DEFAULT_SETTINGS, saveSettings } = await import("../../src/core/settings.ts");
 const { EventReader, listSessions, loadSession } = await import("../../src/core/store.ts");
 const { applyEvents, deriveStatus, initialState } = await import("../../src/core/status.ts");
 
@@ -203,7 +203,7 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ useWorktrees: false, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    saveSettings({ ...DEFAULT_SETTINGS, useWorktrees: false });
     try {
       const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
       expect(s.worktree).toBeUndefined();
@@ -212,7 +212,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
       actions.stopSession(p);
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+      saveSettings(DEFAULT_SETTINGS);
     }
   }, 30000);
 
@@ -254,7 +254,7 @@ describe("tmux integration with a stub agent", () => {
     const renamed = await actions.startSession({ prompt: "do the thing", folders: [plain] }, (draft) =>
       actions.renameSession(draft, "mine"),
     );
-    saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: false, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    saveSettings({ ...DEFAULT_SETTINGS, nameSessions: false });
     try {
       const plainName = await actions.startSession({ prompt: "do the thing", folders: [plain] });
       await waitFor(renamed.id, "your_turn");
@@ -265,7 +265,7 @@ describe("tmux integration with a stub agent", () => {
       actions.stopSession(pane(renamed.id));
       actions.stopSession(pane(plainName.id));
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+      saveSettings(DEFAULT_SETTINGS);
     }
   }, 30000);
 
@@ -274,7 +274,7 @@ describe("tmux integration with a stub agent", () => {
     expect(empty.worktree).toBe(empty.id);
     actions.stopSession(pane(empty.id));
 
-    saveSettings({ useWorktrees: true, nameWorktrees: false, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    saveSettings({ ...DEFAULT_SETTINGS, nameWorktrees: false });
     try {
       const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
       expect(s.worktree).toBe(s.id);
@@ -282,7 +282,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
       actions.stopSession(pane(s.id));
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+      saveSettings(DEFAULT_SETTINGS);
     }
   }, 30000);
 });

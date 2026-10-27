@@ -28,7 +28,8 @@ Usage:
 
 In the dashboard, type a prompt and press Enter to start an agent; Shift-Enter, Option-Enter, or
 Ctrl-J adds a line break. The input starts with the
-agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it.
+agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it among
+the agents turned on in settings.
 Tag folders with @. Ctrl-T cycles how the list is grouped. Ctrl-/ shows every shortcut.
 ${tmux.keyLabel(tmux.DASH_KEY())} returns focus to the list from an agent pane or window.
 Folders offered for @tags come from past sessions, agent chats, and YM_ROOTS (default ~/dev).`;
