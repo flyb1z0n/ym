@@ -65,7 +65,10 @@ Edge cases:
 
 - `src/ssh/pastes.ts`: `PasteRewriter`, the byte-stream parser.
 - `src/ssh/upload.ts`: `sshUploader`, and `uploadImages` which rewrites a paste.
-- `src/ssh/client.ts`: `runSsh`, the PTY proxy.
+- `src/ssh/client.ts`: `runSsh`, the PTY proxy. Once the control socket appears (ssh has
+  connected), it saves the args to `~/.ym/ssh-hosts.json`.
+- `src/ssh/hosts.ts`: the saved hosts, most recently used first.
+- `src/ui/SshHostPicker.tsx`: what plain `ym ssh` shows to pick a saved host.
 - `src/core/images.ts`: `imagePaths`, `replaceImagePaths`, `escapePath`, shared with the
   dashboard.
 
