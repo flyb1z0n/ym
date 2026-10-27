@@ -76,7 +76,14 @@ function agentLaunch(s: Session, prompt?: string, images?: string[]): AgentLaunc
     id: s.id,
     cwd: s.cwd,
     env,
-    command: launchCommand({ chatId: s.chatId, addDirs: s.addDirs, prompt, worktree: s.worktree, model: processingModel() }),
+    command: launchCommand({
+      chatId: s.chatId,
+      addDirs: s.addDirs,
+      prompt,
+      worktree: s.worktree,
+      model: processingModel(),
+      autoRun: loadSettings().cursorAutoRun,
+    }),
   };
 }
 

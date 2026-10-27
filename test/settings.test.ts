@@ -19,13 +19,25 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees and worktree naming default to enabled, and Cursor is the default agent", () => {
+  test("worktrees and worktree naming default to enabled, Cursor is the default agent, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ useWorktrees: true, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor" });
+    expect(DEFAULT_SETTINGS).toEqual({
+      useWorktrees: true,
+      nameWorktrees: true,
+      callMeMain: false,
+      defaultAgent: "cursor",
+      cursorAutoRun: false,
+    });
   });
 
   test("settings round-trip through config.json", () => {
-    const settings = { useWorktrees: false, nameWorktrees: false, callMeMain: true, defaultAgent: "codex" as const };
+    const settings = {
+      useWorktrees: false,
+      nameWorktrees: false,
+      callMeMain: true,
+      defaultAgent: "codex" as const,
+      cursorAutoRun: true,
+    };
     saveSettings(settings);
 
     expect(loadSettings()).toEqual(settings);
@@ -34,7 +46,7 @@ describe("settings", () => {
 
   test("a config from before worktree naming keeps its value and gets the naming default", () => {
     writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false }));
-    expect(loadSettings()).toEqual({ useWorktrees: false, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor" });
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, useWorktrees: false });
   });
 
   test("an unknown default agent falls back to Cursor", () => {
