@@ -53,6 +53,14 @@ const ROWS: Row[] = [
     },
   },
   {
+    key: "nameSessions",
+    label: "Name sessions from the prompt",
+    describe: (s) =>
+      s.nameSessions
+        ? `${namingModel()} writes a one-sentence name in the background; the prompt shows until it's ready.`
+        : "Sessions are named after the first line of their prompt.",
+  },
+  {
     key: "callMeMain",
     label: "Call me Main instead of Master",
     describe: (s) => `The header says "${greeting(s)}"`,

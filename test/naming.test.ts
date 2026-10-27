@@ -2,7 +2,14 @@ import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { isGitRepo, slugify, suggestWorktreeName, uniqueWorktreeName } from "../src/core/naming.ts";
+import {
+  isGitRepo,
+  slugify,
+  suggestSessionName,
+  suggestWorktreeName,
+  toTitle,
+  uniqueWorktreeName,
+} from "../src/core/naming.ts";
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), "ym-naming-")));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -40,6 +47,47 @@ describe("slugify", () => {
   test("returns undefined when nothing usable is left", () => {
     expect(slugify("")).toBeUndefined();
     expect(slugify("!!! \n ...")).toBeUndefined();
+  });
+});
+
+describe("toTitle", () => {
+  test("keeps a clean sentence", () => {
+    expect(toTitle("Fix the login redirect loop\n")).toBe("Fix the login redirect loop");
+  });
+
+  test("drops quotes, markdown, a label, the trailing period and extra spaces", () => {
+    expect(toTitle('**"Add  dark mode to settings."**')).toBe("Add dark mode to settings");
+    expect(toTitle("Title: `Refactor the store`")).toBe("Refactor the store");
+  });
+
+  test("uses the last non-empty line when the model adds a preamble", () => {
+    expect(toTitle("Here is a title:\n\nSpeed up the importer\n")).toBe("Speed up the importer");
+  });
+
+  test("cuts long titles at a word boundary with an ellipsis", () => {
+    const title = toTitle("Add a very long session title that keeps on going and going well past the limit")!;
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(title).toBe("Add a very long session title that keeps on going and…");
+  });
+
+  test("returns undefined when nothing usable is left", () => {
+    expect(toTitle("")).toBeUndefined();
+    expect(toTitle('"..."')).toBeUndefined();
+  });
+});
+
+describe("suggestSessionName", () => {
+  test("asks for a one-sentence title and tidies the answer", async () => {
+    process.env.YM_AGENT_BIN = fakeAgent("title.sh", 'echo "\\"Fix the bug.\\""; echo "${!#}" > "$(dirname "$0")/title-prompt"');
+    expect(await suggestSessionName("the login page crashes")).toBe("Fix the bug");
+    const asked = await Bun.file(join(dir, "title-prompt")).text();
+    expect(asked).toContain("one-sentence title");
+    expect(asked).toContain("the login page crashes");
+  });
+
+  test("returns undefined when the agent fails", async () => {
+    process.env.YM_AGENT_BIN = fakeAgent("title-fail.sh", "exit 1");
+    expect(await suggestSessionName("anything")).toBeUndefined();
   });
 });
 

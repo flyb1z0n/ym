@@ -7,6 +7,8 @@ export interface Settings {
   useWorktrees: boolean;
   /** Ask a small model to name the worktree after the prompt instead of using the session id. */
   nameWorktrees: boolean;
+  /** Ask a small model for a one-sentence session name instead of showing the prompt's first line. */
+  nameSessions: boolean;
   /** Greet the user as "Main" instead of "Master". */
   callMeMain: boolean;
   /** Agent for prompts without a `#agent` tag. */
@@ -18,6 +20,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   useWorktrees: true,
   nameWorktrees: true,
+  nameSessions: true,
   callMeMain: false,
   defaultAgent: "cursor",
   cursorAutoRun: false,
@@ -31,6 +34,7 @@ export function loadSettings(): Settings {
     return {
       useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
       nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
+      nameSessions: flag(value.nameSessions, DEFAULT_SETTINGS.nameSessions),
       callMeMain: flag(value.callMeMain, DEFAULT_SETTINGS.callMeMain),
       defaultAgent: isAgent(value.defaultAgent) ? value.defaultAgent : DEFAULT_SETTINGS.defaultAgent,
       cursorAutoRun: flag(value.cursorAutoRun, DEFAULT_SETTINGS.cursorAutoRun),

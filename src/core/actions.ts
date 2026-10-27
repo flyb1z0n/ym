@@ -4,7 +4,7 @@ import { codexCommand, codexModel, findCodexSession } from "./codex.ts";
 import { createChat, launchCommand, processingModel, PROMPT_BAR } from "./cursor.ts";
 import { promptPastes, referencedImages, stripImageMarkers } from "./images.ts";
 import type { Chat } from "./importer.ts";
-import { isGitRepo, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
+import { isGitRepo, suggestSessionName, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
@@ -120,6 +120,7 @@ export async function startSession(
   if (useWorktree) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
+  if (settings.nameSessions && namingPrompt && !input.name?.trim()) void nameInBackground(draft, namingPrompt);
   const suggestName = () =>
     useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined;
   if (agent === "codex") return startCodex(draft, prompt, images, await suggestName());
@@ -143,6 +144,18 @@ export async function startSession(
   const paneId = newAgentPane(agentLaunch(session, withImages ? undefined : prompt));
   if (withImages) await submitWhenReady(paneId, promptPastes(prompt, input.images ?? []));
   return session;
+}
+
+/** Doesn't hold up the launch; keeps the placeholder if the user renamed or removed the session meanwhile. */
+async function nameInBackground(draft: Session, prompt: string): Promise<void> {
+  const name = await suggestSessionName(prompt);
+  if (!name) return;
+  try {
+    const current = loadSession(draft.id);
+    if (current && current.name === draft.name) saveSession({ ...current, name });
+  } catch {
+    // The prompt-based name is a fine fallback.
+  }
 }
 
 /** Codex can't create a chat up front: it launches right away and its SessionStart hook records the id. */

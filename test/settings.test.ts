@@ -19,11 +19,12 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees and worktree naming default to enabled, Cursor is the default agent, and auto-run is off", () => {
+  test("worktrees, worktree naming and session naming default to enabled, Cursor is the default agent, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
       useWorktrees: true,
       nameWorktrees: true,
+      nameSessions: true,
       callMeMain: false,
       defaultAgent: "cursor",
       cursorAutoRun: false,
@@ -34,6 +35,7 @@ describe("settings", () => {
     const settings = {
       useWorktrees: false,
       nameWorktrees: false,
+      nameSessions: false,
       callMeMain: true,
       defaultAgent: "codex" as const,
       cursorAutoRun: true,

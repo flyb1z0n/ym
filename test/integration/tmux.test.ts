@@ -185,7 +185,7 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ useWorktrees: false, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    saveSettings({ useWorktrees: false, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
     try {
       const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
       expect(s.worktree).toBeUndefined();
@@ -194,7 +194,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
       actions.stopSession(p);
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
     }
   }, 30000);
 
@@ -219,12 +219,44 @@ describe("tmux integration with a stub agent", () => {
     actions.stopSession(pane(s.id));
   }, 30000);
 
+  test("the session's prompt-based name is replaced by the model's title once it's ready", async () => {
+    let listedAs = "";
+    const s = await actions.startSession({ prompt: "do the thing", folders: [dir] }, (draft) => {
+      listedAs = draft.name;
+    });
+    expect(listedAs).toBe("do the thing");
+    const end = Date.now() + 8000;
+    while (loadSession(s.id)?.name !== "Do the thing for the user" && Date.now() < end) await Bun.sleep(100);
+    expect(loadSession(s.id)?.name).toBe("Do the thing for the user");
+    await waitFor(s.id, "your_turn");
+    actions.stopSession(pane(s.id));
+  }, 30000);
+
+  test("a rename before the title is ready, or the setting turned off, keeps the session's name", async () => {
+    const renamed = await actions.startSession({ prompt: "do the thing", folders: [plain] }, (draft) =>
+      actions.renameSession(draft, "mine"),
+    );
+    saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: false, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    try {
+      const plainName = await actions.startSession({ prompt: "do the thing", folders: [plain] });
+      await waitFor(renamed.id, "your_turn");
+      await waitFor(plainName.id, "your_turn");
+      await Bun.sleep(500);
+      expect(loadSession(renamed.id)?.name).toBe("mine");
+      expect(loadSession(plainName.id)?.name).toBe("do the thing");
+      actions.stopSession(pane(renamed.id));
+      actions.stopSession(pane(plainName.id));
+    } finally {
+      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    }
+  }, 30000);
+
   test("with naming disabled, or no prompt, the worktree is named after the session id", async () => {
     const empty = await actions.startSession({ prompt: "", folders: [dir] });
     expect(empty.worktree).toBe(empty.id);
     actions.stopSession(pane(empty.id));
 
-    saveSettings({ useWorktrees: true, nameWorktrees: false, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+    saveSettings({ useWorktrees: true, nameWorktrees: false, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
     try {
       const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
       expect(s.worktree).toBe(s.id);
@@ -232,7 +264,7 @@ describe("tmux integration with a stub agent", () => {
       expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
       actions.stopSession(pane(s.id));
     } finally {
-      saveSettings({ useWorktrees: true, nameWorktrees: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
+      saveSettings({ useWorktrees: true, nameWorktrees: true, nameSessions: true, callMeMain: false, defaultAgent: "cursor", cursorAutoRun: false });
     }
   }, 30000);
 });
