@@ -27,15 +27,31 @@ function resolveImage(token: string): string | undefined {
   }
 }
 
+/** Replaces each image file path in pasted text with `replace(file)`, unless it returns undefined. */
+export function replaceImagePaths(text: string, replace: (path: string) => string | undefined): string {
+  return text.replace(PATH_TOKEN, (token) => {
+    const path = resolveImage(token);
+    return (path && replace(path)) ?? token;
+  });
+}
+
+/** The image files named in pasted text, each once. */
+export function imagePaths(text: string): string[] {
+  const paths = new Set<string>();
+  replaceImagePaths(text, (path) => void paths.add(path));
+  return [...paths];
+}
+
+/** A path escaped the way terminals paste a dropped file. */
+export const escapePath = (path: string) => path.replace(/([\s()])/g, "\\$1");
+
 /**
  * Replaces image file paths in pasted text (what terminals send for drag-and-drop) with
  * `[Image #N]` markers, where N indexes the returned `images`.
  */
 export function attachPastedImages(text: string, images: string[]): { text: string; images: string[] } {
   const next = [...images];
-  const replaced = text.replace(PATH_TOKEN, (token) => {
-    const path = resolveImage(token);
-    if (!path) return token;
+  const replaced = replaceImagePaths(text, (path) => {
     const i = next.includes(path) ? next.indexOf(path) : next.push(path) - 1;
     return `[Image #${i + 1}]`;
   });
@@ -63,7 +79,7 @@ export function promptPastes(text: string, images: string[]): string[] {
     const path = images[Number(m[1]) - 1];
     if (!path) continue;
     pushText(m.index);
-    pastes.push(path.replace(/([\s()])/g, "\\$1"));
+    pastes.push(escapePath(path));
     last = m.index + m[0].length;
   }
   pushText(text.length);
