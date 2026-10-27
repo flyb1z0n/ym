@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describeHost, forgetHost, loadHosts, rememberHost, sshHostsFile } from "../src/ssh/hosts.ts";
+import { describeHost, forgetHost, loadHosts, rememberHost, sshDestination, sshHostsFile } from "../src/ssh/hosts.ts";
 
 let home: string;
 
@@ -71,5 +71,11 @@ describe("saved ssh hosts", () => {
   test("describeHost skips option values, whether attached, separate, or after grouped flags", () => {
     expect(describeHost(["-p2222", "-vA", "-o", "Port=22", "-Ci", "key", "devbox"]).destination).toBe("devbox");
     expect(describeHost(["--", "devbox"]).destination).toBe("devbox");
+  });
+
+  test("sshDestination finds the host wherever it sits, and nothing when there is only options", () => {
+    expect(sshDestination(["me@devbox", "-p", "2222"])).toBe("me@devbox");
+    expect(sshDestination(["-p", "2222", "devbox"])).toBe("devbox");
+    expect(sshDestination(["-p", "2222"])).toBeUndefined();
   });
 });

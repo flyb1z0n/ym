@@ -66,6 +66,12 @@ function destinationIndex(args: string[]): number {
   return -1;
 }
 
+/** The destination among ssh arguments, which ssh also takes before its options. */
+export function sshDestination(args: string[]): string | undefined {
+  const at = destinationIndex(args);
+  return at < 0 ? undefined : args[at];
+}
+
 /** The destination and the ssh options around it, for display. ssh also takes options after the destination. */
 export function describeHost(args: string[]): { destination: string; options: string } {
   const at = destinationIndex(args);
