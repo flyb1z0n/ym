@@ -29,7 +29,7 @@ import { attachPastedImages } from "../core/images.ts";
 import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
-import { detachClient, focusRight, listAgentPanes, show, unshow } from "../core/tmux.ts";
+import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { tildify } from "./format.ts";
 import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
@@ -51,8 +51,7 @@ type Mode =
   | { kind: "settings" };
 
 const KEYS_SHORT = "⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^/ all keys";
-const KEYS_FULL =
-  "⏎ open · ⇧⏎ new line · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ^G back here · ^/ fewer keys";
+const KEYS_FULL = `⏎ open · ↑↓ select · @ folder · ⇧Tab agent · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ${keyLabel(DASH_KEY())} back here · ^/ fewer keys`;
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
