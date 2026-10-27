@@ -63,4 +63,13 @@ describe("saved ssh hosts", () => {
       options: "-p 2222 -i ~/.ssh/key",
     });
   });
+
+  test("describeHost finds the destination when options follow it", () => {
+    expect(describeHost(["me@devbox", "-p", "2222"])).toEqual({ destination: "me@devbox", options: "-p 2222" });
+  });
+
+  test("describeHost skips option values, whether attached, separate, or after grouped flags", () => {
+    expect(describeHost(["-p2222", "-vA", "-o", "Port=22", "-Ci", "key", "devbox"]).destination).toBe("devbox");
+    expect(describeHost(["--", "devbox"]).destination).toBe("devbox");
+  });
 });
