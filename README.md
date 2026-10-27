@@ -69,6 +69,7 @@ Dropping an image on the terminal pastes its local path, which doesn't exist on 
 - `Shift-Enter` adds a line break for a multi-line prompt. It needs tmux 3.5+ and a terminal that reports modified keys (iTerm2, Ghostty, kitty, WezTerm). `Ctrl-j` works in any terminal, and so does `Option-Enter` when Option acts as Meta.
 - Use `@folder` tags in the prompt to target workspace folders.
 - The input starts with the agent it will use (e.g. `Cursor › `). `Shift-Tab` switches it for that prompt; after launch it goes back to the default.
+- The Agents section in `Ctrl-s` settings turns agents on and off; `Shift-Tab` cycles only through the ones that are on. With a single agent on, the input doesn't show its name. At least one agent stays on.
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.
 - `Tab` switches between Sessions and Archived.
 - `Ctrl-t` cycles grouping mode.
