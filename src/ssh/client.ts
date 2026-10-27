@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ymHome } from "../core/paths.ts";
+import { REMOTE_ENV } from "../core/tmux.ts";
 import { rememberHost } from "./hosts.ts";
 import { PasteRewriter } from "./pastes.ts";
 import { SSH_BIN, cachedUploader, sshUploader, uploadImages } from "./upload.ts";
@@ -8,6 +9,8 @@ import { SSH_BIN, cachedUploader, sshUploader, uploadImages } from "./upload.ts"
 /** What runs on the remote host; a login shell so `~/.local/bin` is on PATH. */
 export const remoteCommand = () => process.env.YM_REMOTE_CMD ?? `exec "$SHELL" -lc ym`;
 export const sshLogFile = () => join(ymHome(), "ssh.log");
+/** The destination as the remote dashboard shows it, kept to characters every shell takes unquoted. */
+const remoteLabel = (destination: string) => destination.replace(/[^\w.@:-]/g, "");
 
 function log(message: string): void {
   try {
@@ -38,7 +41,7 @@ export async function runSsh(args: string[]): Promise<number> {
     [
       SSH_BIN(), "-t",
       "-o", `ControlPath=${controlPath}`, "-o", "ControlMaster=auto", "-o", "RemoteCommand=none",
-      ...args, remoteCommand(),
+      ...args, `${REMOTE_ENV}=${remoteLabel(destination)} ${remoteCommand()}`,
     ],
     {
       terminal: {

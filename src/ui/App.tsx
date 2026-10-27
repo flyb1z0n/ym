@@ -77,7 +77,7 @@ const linesFor = (text: string, width: number) => Math.max(1, Math.ceil(text.len
 export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: boolean; codexHooksInstalled: boolean }) {
   const { exit } = useApp();
   const { columns, rows: termRows } = useWindowSize();
-  const { rows, panes, refresh } = useDashboard();
+  const { rows, panes, remote, refresh } = useDashboard();
   const [tab, setTab] = useState<TabId>("sessions");
   const [group, setGroup] = useState<GroupMode>("status");
   const [selectedId, setSelectedId] = useState<string>();
@@ -416,7 +416,15 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
 
   return (
     <Box flexDirection="column" height={termRows}>
-      <Header rows={rows} tab={tab} counts={counts} group={group} dimmed={modalOpen} callMeMain={settings.callMeMain} />
+      <Header
+        rows={rows}
+        tab={tab}
+        counts={counts}
+        group={group}
+        dimmed={modalOpen}
+        callMeMain={settings.callMeMain}
+        remote={remote}
+      />
       <SessionList
         groups={groups}
         mode={group}

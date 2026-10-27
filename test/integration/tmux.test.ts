@@ -77,6 +77,23 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.tmux(["show-environment", "-g", "COLORTERM"]).stdout.trim()).toBe("COLORTERM=truecolor");
   });
 
+  test("the dashboard knows whether the latest client attached through ym ssh", async () => {
+    const attach = async (env: Record<string, string>) => {
+      const client = Bun.spawn(["tmux", "-L", tmux.SOCKET(), "attach-session", "-t", "=ym"], {
+        env: { ...process.env, TERM: "xterm", ...env },
+        terminal: { cols: 80, rows: 24, data() {} },
+      });
+      const end = Date.now() + 5000;
+      while (!tmux.tmux(["list-clients"]).stdout.trim() && Date.now() < end) await Bun.sleep(50);
+      tmux.detachClient();
+      await client.exited;
+    };
+    await attach({ [tmux.REMOTE_ENV]: "me@devbox" });
+    expect(tmux.remoteHost()).toBe("me@devbox");
+    await attach({});
+    expect(tmux.remoteHost()).toBeUndefined();
+  });
+
   test("panes that ask for extended keys get Shift-Enter as CSI u", () => {
     if (!tmux.csiUKeys()) return; // tmux < 3.5
     expect(tmux.tmux(["show-options", "-sv", "extended-keys"]).stdout.trim()).toBe("on");
