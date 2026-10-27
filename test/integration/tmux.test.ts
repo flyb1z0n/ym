@@ -69,6 +69,10 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.tmux(["show-option", "-gv", "window-active-style"]).stdout.trim()).toBe("default");
   });
 
+  test("panes are told they can use truecolor, even when the client's env lacks COLORTERM", () => {
+    expect(tmux.tmux(["show-environment", "-g", "COLORTERM"]).stdout.trim()).toBe("COLORTERM=truecolor");
+  });
+
   test("panes that ask for extended keys get Shift-Enter as CSI u", () => {
     if (!tmux.csiUKeys()) return; // tmux < 3.5
     expect(tmux.tmux(["show-options", "-sv", "extended-keys"]).stdout.trim()).toBe("on");

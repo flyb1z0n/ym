@@ -110,6 +110,9 @@ export function configureServer(): void {
     must(["set-option", "-g", "window-style", "fg=colour245"]);
   }
   must(["set-option", "-g", "window-active-style", "default"]);
+  // Agents pick truecolor themes only when COLORTERM says so, and ssh doesn't forward it from the local terminal.
+  // tmux itself renders truecolor and falls back to the nearest 256 colour for terminals without RGB.
+  must(["set-environment", "-g", "COLORTERM", "truecolor"]);
   // Keep panes after exit so an agent's final output stays visible; status treats it as exited.
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
   // Lets the dashboard reach the outer terminal (OSC 9 notifications) even when its window isn't shown; tmux < 3.3 lacks it.
