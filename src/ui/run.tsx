@@ -19,7 +19,8 @@ export async function runDashboard(): Promise<void> {
   if (extendedKeys) process.stdout.write(EXTENDED_KEYS_ON);
   const app = render(
     <App hooksInstalled={isInstalled(self)} codexHooksInstalled={!hasCodex() || isCodexInstalled(self)} />,
-    { exitOnCtrlC: false },
+    // By default every frame erases the whole UI and rewrites it; over ssh the blank state can reach the screen as a blink.
+    { exitOnCtrlC: false, incrementalRendering: true },
   );
   await app.waitUntilExit();
   if (extendedKeys) process.stdout.write(EXTENDED_KEYS_OFF);
