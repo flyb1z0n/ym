@@ -22,6 +22,7 @@ Usage:
   ym install      register ym's status hooks in ~/.cursor/hooks.json and ~/.codex/hooks.json
   ym uninstall    remove ym's hooks from both
   ym ssh [ssh options] <host>  open ym on <host> over ssh; images dropped on this terminal are uploaded
+  ym ssh          pick a host you connected to before
   ym hook <event> [codex]  internal: called by agent hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
@@ -82,7 +83,17 @@ switch (command) {
   case "ssh": {
     const { runSsh } = await import("./ssh/client.ts");
     try {
-      process.exit(await runSsh(args));
+      let sshArgs: string[] | undefined = args;
+      if (sshArgs.length === 0) {
+        const { loadHosts } = await import("./ssh/hosts.ts");
+        const hosts = loadHosts();
+        if (hosts.length === 0) fail("usage: ym ssh [ssh options] <host> (no saved hosts yet)");
+        if (!process.stdin.isTTY || !process.stdout.isTTY) fail("ym ssh needs a terminal.");
+        const { pickHost } = await import("./ui/SshHostPicker.tsx");
+        sshArgs = await pickHost(hosts);
+        if (!sshArgs) process.exit(0);
+      }
+      process.exit(await runSsh(sshArgs));
     } catch (e) {
       fail((e as Error).message);
     }
