@@ -1,6 +1,7 @@
-import { appendFileSync, mkdirSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ymHome } from "../core/paths.ts";
+import { rememberHost } from "./hosts.ts";
 import { PasteRewriter } from "./pastes.ts";
 import { SSH_BIN, cachedUploader, sshUploader, uploadImages } from "./upload.ts";
 
@@ -54,8 +55,19 @@ export async function runSsh(args: string[]): Promise<number> {
     (data) => pty.write(data),
     (text) => uploadImages(text, upload, (path, e) => log(`upload failed for ${path}: ${e.message}`)),
   );
-  const onInput = (chunk: Buffer) => pastes.feed(chunk);
+  // Strings when the host picker ran first: Ink sets stdin's encoding, and that can't be undone.
+  const onInput = (chunk: Buffer | string) => pastes.feed(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
   const onResize = () => pty.resize(stdout.columns, stdout.rows);
+  // The control socket appears once ssh has connected and authenticated, so typos aren't remembered.
+  const remember = setInterval(() => {
+    if (!existsSync(controlPath)) return;
+    clearInterval(remember);
+    try {
+      rememberHost(args);
+    } catch (e) {
+      log(`could not save ${args.join(" ")}: ${(e as Error).message}`);
+    }
+  }, 250);
 
   stdin.setRawMode(true);
   stdin.on("data", onInput);
@@ -65,6 +77,7 @@ export async function runSsh(args: string[]): Promise<number> {
     await Promise.race([ptyClosed, Bun.sleep(500)]);
     return code;
   } finally {
+    clearInterval(remember);
     process.off("SIGWINCH", onResize);
     stdin.off("data", onInput);
     stdin.setRawMode(false);
