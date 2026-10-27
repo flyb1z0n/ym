@@ -58,6 +58,9 @@ export async function runSsh(args: string[]): Promise<number> {
   const onResize = () => pty.resize(stdout.columns, stdout.rows);
 
   stdin.setRawMode(true);
+  // setRawMode keeps output processing, which turns the bare line feeds tmux uses to move the
+  // cursor down into CR LF and garbles the remote screen; ssh itself turns it off too.
+  Bun.spawnSync(["stty", "-opost"], { stdin: "inherit" });
   stdin.on("data", onInput);
   process.on("SIGWINCH", onResize);
   try {

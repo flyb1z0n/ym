@@ -16,7 +16,7 @@ const S = "\x1b[200~";
 const E = "\x1b[201~";
 
 /** Runs `ym ssh devbox` in a PTY whose "remote" program prints each pasted line visibly. */
-function start() {
+function start(remoteCmd = "stty raw -echo; head -c 1 >/dev/null; echo ready; cat -v") {
   let out = "";
   const proc = Bun.spawn([process.execPath, resolve(import.meta.dir, "../../src/cli.tsx"), "ssh", "-p", "2222", "devbox"], {
     env: {
@@ -25,7 +25,7 @@ function start() {
       YM_HOME: join(dir, "local"),
       YM_SSH_BIN: stub,
       YM_STUB_SSH_LOG: join(dir, "ssh-args"),
-      YM_REMOTE_CMD: "stty raw -echo; head -c 1 >/dev/null; echo ready; cat -v",
+      YM_REMOTE_CMD: remoteCmd,
     },
     terminal: { cols: 200, rows: 24, data: (_t, d) => (out += Buffer.from(d).toString()) },
   });
@@ -60,6 +60,16 @@ describe("ym ssh", () => {
     const args = readFileSync(join(dir, "ssh-args"), "utf8").split("\n");
     expect(args[0]).toMatch(/^-t -o ControlPath=.+\.sock -o ControlMaster=auto -o RemoteCommand=none -p 2222 devbox /);
     expect(args[1]).toMatch(/^-S .+\.sock -T -o BatchMode=yes .* devbox sh -c /);
+
+    proc.kill();
+    await proc.exited;
+  });
+
+  test("remote line feeds reach the local terminal without an added carriage return", async () => {
+    const { proc, out } = start("stty raw -echo; head -c 1 >/dev/null; printf 'one\\ntwo\\nend'; head -c 1 >/dev/null");
+    proc.terminal!.write("go");
+    await waitFor(out, /end/);
+    expect(out()).toContain("one\ntwo\nend");
 
     proc.kill();
     await proc.exited;
