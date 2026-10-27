@@ -8,9 +8,13 @@ if [[ "${1:-}" == "create-chat" ]]; then
   exit 0
 fi
 
-# Worktree naming call: answer like a model would, untidy on purpose.
+# Naming calls: answer like a model would, untidy on purpose.
 if [[ "${1:-}" == "-p" ]]; then
-  echo "Do The Thing!"
+  if [[ "${!#}" == *"one-sentence title"* ]]; then
+    echo '"Do the thing for the user."'
+  else
+    echo "Do The Thing!"
+  fi
   exit 0
 fi
 
