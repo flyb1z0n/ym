@@ -13,4 +13,14 @@ describe("Header", () => {
     expect(lines[1]).toStartWith("│ Yes, Master! │");
     expect(lines[2]).toStartWith("╰──────────────╯");
   });
+
+  test("shows the host next to the logo when viewed through ym ssh", () => {
+    const render = (remote?: string) =>
+      renderToString(
+        <Header rows={[]} tab="sessions" counts={{ sessions: 0, archived: 0 } as never} group="status" remote={remote} />,
+        { columns: 80 },
+      ).split("\n");
+    expect(render("devbox")[0]).toMatch(/^╭─+╮ ⇄ devbox {2}0 ready/);
+    expect(render()[0]).toMatch(/^╭─+╮ 0 ready/);
+  });
 });

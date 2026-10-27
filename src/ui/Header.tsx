@@ -28,11 +28,13 @@ interface Props {
   group: GroupMode;
   dimmed?: boolean;
   callMeMain?: boolean;
+  /** The host this dashboard is viewed from through `ym ssh`. */
+  remote?: string;
 }
 
 export const HEADER_HEIGHT = logo("").length + 1;
 
-export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = false }: Props) {
+export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = false, remote }: Props) {
   const active = rows.filter((r) => r.session.archivedAt === undefined);
   const summary = SUMMARY.map((s) => ({ ...s, n: active.filter((r) => r.status === s.status).length })).filter(
     (s) => s.n > 0 || s.status === "your_turn" || s.status === "working",
@@ -49,6 +51,11 @@ export function Header({ rows, tab, counts, group, dimmed = false, callMeMain = 
         </Box>
         <Box flexDirection="column">
           <Text dimColor={dimmed} wrap="truncate">
+            {remote ? (
+              <Text bold color="magenta">
+                {`⇄ ${remote}  `}
+              </Text>
+            ) : null}
             {summary.map((s, i) => (
               <Text key={s.status}>
                 {i > 0 ? <Text dimColor> · </Text> : null}

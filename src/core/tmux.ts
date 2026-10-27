@@ -4,6 +4,8 @@ export const SOCKET = () => process.env.YM_TMUX_SOCKET ?? "ym";
 export const SESSION = "ym";
 export const DASH_WINDOW = "dash";
 export const DASH_KEY = () => process.env.YM_DASH_KEY ?? "C-g";
+/** Set by `ym ssh` for the remote `ym` to the host it connected to. */
+export const REMOTE_ENV = "YM_SSH";
 
 const DASH = `${SESSION}:=${DASH_WINDOW}`;
 const UI_PANE = `${DASH}.0`;
@@ -116,6 +118,10 @@ export function configureServer(): void {
   // Agents pick truecolor themes only when COLORTERM says so, and ssh doesn't forward it from the local terminal.
   // tmux itself renders truecolor and falls back to the nearest 256 colour for terminals without RGB.
   must(["set-environment", "-g", "COLORTERM", "truecolor"]);
+  // Each attach copies YM_SSH from the attaching client into the session, or clears it if the client lacks it.
+  if (!tmux(["show-options", "-gv", "update-environment"]).stdout.split("\n").includes(REMOTE_ENV)) {
+    must(["set-option", "-ga", "update-environment", REMOTE_ENV]);
+  }
   // Keep panes after exit so an agent's final output stays visible; status treats it as exited.
   must(["set-option", "-g", "-w", "remain-on-exit", "on"]);
   // Lets the dashboard reach the outer terminal (OSC 9 notifications) even when its window isn't shown; tmux < 3.3 lacks it.
@@ -131,6 +137,12 @@ export function configureServer(): void {
 
 /** Whether panes that request extended keys get them in the CSI u format. */
 export const csiUKeys = () => tmux(["show-options", "-sqv", "extended-keys-format"]).stdout.trim() === "csi-u";
+
+/** The host the most recently attached client came from through `ym ssh`, if it did. */
+export function remoteHost(): string | undefined {
+  const line = tmux(["show-environment", "-t", `=${SESSION}`, REMOTE_ENV]).stdout.trim();
+  return line.startsWith(`${REMOTE_ENV}=`) ? line.slice(REMOTE_ENV.length + 1) || undefined : undefined;
+}
 
 export const runningBuild = () => tmux(["show-option", "-gqv", "@ym_build"]).stdout.trim();
 export const recordBuild = (id: string) => void tmux(["set-option", "-g", "@ym_build", id]);

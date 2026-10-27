@@ -90,6 +90,13 @@ describe("ym ssh", () => {
     await proc.exited;
   });
 
+  test("the remote ym is told which host it was reached as", async () => {
+    const { proc, out } = start(["-p", "2222", "me@devbox"], `sh -c 'echo "via $YM_SSH"; sleep 5'`);
+    await waitFor(out, /via me@devbox/);
+    proc.kill();
+    await proc.exited;
+  });
+
   test("a host is remembered with its options once ssh connects", async () => {
     const { proc } = start(["-p", "2222", "devbox"]);
     await waitFor(savedArgs, /devbox/);

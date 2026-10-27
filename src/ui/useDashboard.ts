@@ -3,7 +3,7 @@ import type { Row } from "../core/filter.ts";
 import { notify } from "../core/notify.ts";
 import { applyEvents, deriveStatus, initialState, isStarting, type SessionState } from "../core/status.ts";
 import { EventReader, listSessions } from "../core/store.ts";
-import { listAgentPanes } from "../core/tmux.ts";
+import { listAgentPanes, remoteHost } from "../core/tmux.ts";
 import type { Status, PaneInfo } from "../core/types.ts";
 import { STATUS_STYLE } from "./format.ts";
 
@@ -13,6 +13,8 @@ const TICK_MS = 1000;
 export interface DashboardData {
   rows: Row[];
   panes: Map<string, PaneInfo>;
+  /** The host the dashboard is viewed from through `ym ssh`, if it is. */
+  remote: string | undefined;
   refresh: () => void;
 }
 
@@ -20,9 +22,10 @@ export function useDashboard(): DashboardData {
   const reader = useRef(new EventReader());
   const states = useRef(new Map<string, SessionState>());
   const previous = useRef(new Map<string, Status>());
-  const [data, setData] = useState<{ rows: Row[]; panes: Map<string, PaneInfo> }>({
+  const [data, setData] = useState<Omit<DashboardData, "refresh">>({
     rows: [],
     panes: new Map(),
+    remote: undefined,
   });
 
   const refresh = useCallback(() => {
@@ -55,7 +58,7 @@ export function useDashboard(): DashboardData {
       previous.current.delete(id);
       reader.current.forget(id);
     }
-    setData({ rows, panes });
+    setData({ rows, panes, remote: remoteHost() });
   }, []);
 
   useEffect(() => {
