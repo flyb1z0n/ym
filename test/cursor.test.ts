@@ -32,6 +32,16 @@ describe("launchCommand", () => {
     ]);
   });
 
+  test("auto-run adds --force", () => {
+    expect(launchCommand({ chatId: "chat-id", autoRun: true })).toEqual([
+      "agent",
+      "--resume",
+      "chat-id",
+      "--trust",
+      "--force",
+    ]);
+  });
+
   test("omits the worktree flag for existing non-worktree sessions", () => {
     expect(launchCommand({ chatId: "chat-id" })).toEqual(["agent", "--resume", "chat-id", "--trust"]);
   });

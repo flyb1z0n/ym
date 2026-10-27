@@ -21,6 +21,8 @@ interface Row {
   value?: (s: Settings) => string;
   /** Next value; flips flags. */
   next?: (s: Settings) => Settings;
+  /** Heading shown above the first row of a section. */
+  section?: string;
 }
 
 const ROWS: Row[] = [
@@ -55,6 +57,15 @@ const ROWS: Row[] = [
     label: "Call me Main instead of Master",
     describe: (s) => `The header says "${greeting(s)}"`,
   },
+  {
+    key: "cursorAutoRun",
+    section: "Cursor",
+    label: "Auto-run commands",
+    describe: (s) =>
+      s.cursorAutoRun
+        ? "Cursor runs commands without asking (--force) unless they're explicitly denied."
+        : "Cursor asks before running commands.",
+  },
 ];
 
 const shown = (row: Row, s: Settings) => row.value?.(s) ?? (s[row.key] ? "on" : "off");
@@ -80,6 +91,11 @@ export function SettingsView({ settings, width, height, onChange, onClose }: Pro
       <Text dimColor>Changes are saved immediately.</Text>
       {ROWS.map((row, i) => (
         <Box key={row.key} flexDirection="column" marginTop={1}>
+          {row.section && row.section !== ROWS[i - 1]?.section && (
+            <Box marginBottom={1}>
+              <Text bold>{row.section}</Text>
+            </Box>
+          )}
           <Text inverse={i === selected}>
             {` ${row.label.padEnd(label)}  ${shown(row, settings).padEnd(valueWidth)} `}
           </Text>

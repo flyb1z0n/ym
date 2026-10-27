@@ -28,10 +28,13 @@ export interface LaunchOptions {
   prompt?: string;
   worktree?: string;
   model?: string;
+  /** Runs commands without asking for approval. */
+  autoRun?: boolean;
 }
 
 export function launchCommand(o: LaunchOptions): string[] {
   const cmd = [AGENT_BIN(), "--resume", o.chatId, "--trust"];
+  if (o.autoRun) cmd.push("--force");
   if (o.model) cmd.push("--model", o.model);
   if (o.worktree) cmd.push("--worktree", o.worktree);
   for (const dir of o.addDirs ?? []) cmd.push("--add-dir", dir);
