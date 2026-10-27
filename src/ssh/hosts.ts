@@ -48,7 +48,27 @@ export function forgetHost(args: string[]): void {
   saveHosts(loadHosts().filter((h) => !sameArgs(h.args, args)));
 }
 
-/** The destination and the ssh options before it, for display. */
+/** ssh flags that take a value, from ssh(1). */
+const FLAGS_WITH_VALUE = new Set("BbcDEeFIiJLlmOoPpQRSWw");
+
+/** Index of the destination: the first argument that isn't an option or an option's value. */
+function destinationIndex(args: string[]): number {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--") return i + 1 < args.length ? i + 1 : -1;
+    if (!arg.startsWith("-") || arg === "-") return i;
+    for (let j = 1; j < arg.length; j++) {
+      if (!FLAGS_WITH_VALUE.has(arg[j]!)) continue;
+      if (j === arg.length - 1) i++;
+      break;
+    }
+  }
+  return -1;
+}
+
+/** The destination and the ssh options around it, for display. ssh also takes options after the destination. */
 export function describeHost(args: string[]): { destination: string; options: string } {
-  return { destination: args.at(-1) ?? "", options: args.slice(0, -1).join(" ") };
+  const at = destinationIndex(args);
+  if (at < 0) return { destination: args.at(-1) ?? "", options: args.slice(0, -1).join(" ") };
+  return { destination: args[at]!, options: args.filter((_, i) => i !== at).join(" ") };
 }
