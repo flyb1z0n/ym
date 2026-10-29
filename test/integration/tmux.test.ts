@@ -216,6 +216,30 @@ describe("tmux integration with a stub agent", () => {
     }
   }, 30000);
 
+  test("context mode starts in the dev directory, without a worktree, and names the tagged folders in the prompt", async () => {
+    saveSettings({ ...DEFAULT_SETTINGS, devDir: dir });
+    try {
+      const s = await actions.startSession({ prompt: "fix login", folders: [extra, plain], context: true });
+      expect(s).toMatchObject({ cwd: dir, addDirs: [plain], contextFolders: [extra, plain], prompt: "fix login" });
+      expect(s.worktree).toBeUndefined();
+      await waitFor(s.id, "your_turn");
+      // The multi-line prompt scrolls the command line out of view, so read the scrollback too.
+      const screen = tmux.tmux(["capture-pane", "-p", "-J", "-S", "-", "-t", pane(s.id)!.paneId]).stdout;
+      expect(screen).toContain(`--add-dir ${plain} fix login`);
+      expect(screen).toContain(`- ${extra}`);
+      expect(screen).not.toContain("--worktree");
+      actions.stopSession(pane(s.id));
+    } finally {
+      saveSettings(DEFAULT_SETTINGS);
+    }
+  }, 30000);
+
+  test("context mode needs a dev directory", async () => {
+    await expect(actions.startSession({ prompt: "fix login", folders: [extra], context: true })).rejects.toThrow(
+      "Set a dev directory first",
+    );
+  });
+
   test("a folder outside git gets a regular session even with worktrees on", async () => {
     const s = await actions.startSession({ prompt: "not a repo", folders: [plain] });
     expect(s.worktree).toBeUndefined();

@@ -54,6 +54,15 @@ describe("settings", () => {
     expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, useWorktrees: false });
   });
 
+  test("the dev directory is unset by default, round-trips, and drops non-string values", () => {
+    expect(loadSettings().devDir).toBeUndefined();
+    saveSettings({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev" });
+    expect(loadSettings().devDir).toBe("/Users/me/dev");
+
+    writeFileSync(settingsFile(), JSON.stringify({ devDir: 42 }));
+    expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
+
   test("an unknown default agent falls back to Cursor", () => {
     writeFileSync(settingsFile(), JSON.stringify({ defaultAgent: "claude" }));
     expect(loadSettings().defaultAgent).toBe("cursor");

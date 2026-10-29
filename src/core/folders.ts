@@ -104,3 +104,10 @@ export function parsePrompt(text: string, index: string[]): ParsedPrompt {
     .trim();
   return { prompt, folders: [...new Set(folders)], errors };
 }
+
+/** Points the agent at `folders` from the prompt instead of starting it in them. */
+export function contextPrompt(prompt: string, folders: string[]): string {
+  if (!folders.length) return prompt;
+  const list = folders.map((f) => `- ${f}`).join("\n");
+  return `${prompt}\n\nContext: start by looking at these folders; they're most relevant to this task:\n${list}`.trim();
+}

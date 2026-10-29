@@ -4,6 +4,7 @@ import { AGENT_NAMES, AGENTS, nextAgent } from "../core/agents.ts";
 import { namingModel } from "../core/naming.ts";
 import { toggleAgent, type Settings } from "../core/settings.ts";
 import type { Agent } from "../core/types.ts";
+import { tildify } from "./format.ts";
 import { greeting } from "./Header.tsx";
 
 interface Props {
@@ -11,7 +12,10 @@ interface Props {
   width: number;
   height: number;
   onChange: (settings: Settings) => void;
+  onEditDevDir: () => void;
   onClose: () => void;
+  /** Off while a dialog on top takes the keys. */
+  active?: boolean;
 }
 
 interface Row {
@@ -22,6 +26,8 @@ interface Row {
   value?: (s: Settings) => string;
   /** Next value; flips flags. */
   next?: (s: Settings) => Settings;
+  /** Changed in the dev directory dialog instead of in place. */
+  edit?: true;
   /** Heading shown above the first row of a section. */
   section?: string;
 }
@@ -92,22 +98,39 @@ const ROWS: Row[] = [
         ? "Cursor runs commands without asking (--force) unless they're explicitly denied."
         : "Cursor asks before running commands.",
   },
+  {
+    key: "devDir",
+    section: "Context mode",
+    label: "Dev directory",
+    describe: (s) =>
+      s.devDir
+        ? "Ctrl-F sessions start here without a worktree; their @tags only point the agent at folders."
+        : "The folder that contains all your repositories. Ctrl-F asks for it the first time.",
+    value: (s) => (s.devDir ? tildify(s.devDir) : "not set"),
+    edit: true,
+  },
 ];
 
 const shown = (row: Row, s: Settings) => row.value?.(s) ?? (s[row.key] ? "on" : "off");
 const advance = (row: Row, s: Settings): Settings => row.next?.(s) ?? { ...s, [row.key]: !s[row.key] };
 
-export function SettingsView({ settings, width, height, onChange, onClose }: Props) {
+export function SettingsView({ settings, width, height, onChange, onEditDevDir, onClose, active = true }: Props) {
   const [selected, setSelected] = useState(0);
   const label = Math.max(...ROWS.map((r) => r.label.length));
   const valueWidth = Math.max(3, ...ROWS.map((r) => shown(r, settings).length));
 
-  useInput((input, key) => {
-    if (key.escape || (key.ctrl && input === "s")) return onClose();
-    if (key.upArrow) return setSelected((i) => Math.max(0, i - 1));
-    if (key.downArrow) return setSelected((i) => Math.min(ROWS.length - 1, i + 1));
-    if (key.return || input === " ") onChange(advance(ROWS[selected]!, settings));
-  });
+  useInput(
+    (input, key) => {
+      if (key.escape || (key.ctrl && input === "s")) return onClose();
+      if (key.upArrow) return setSelected((i) => Math.max(0, i - 1));
+      if (key.downArrow) return setSelected((i) => Math.min(ROWS.length - 1, i + 1));
+      if (!key.return && input !== " ") return;
+      const row = ROWS[selected]!;
+      if (row.edit) onEditDevDir();
+      else onChange(advance(row, settings));
+    },
+    { isActive: active },
+  );
 
   return (
     <Box flexDirection="column" width={width} height={height} paddingX={1}>
