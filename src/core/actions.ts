@@ -2,6 +2,7 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import { AGENT_NAMES, agentAvailable, agentOf, notFound } from "./agents.ts";
 import { codexCommand, codexModel, findCodexSession } from "./codex.ts";
 import { createChat, launchCommand, processingModel, PROMPT_BAR } from "./cursor.ts";
+import { contextPrompt } from "./folders.ts";
 import { promptPastes, referencedImages, stripImageMarkers } from "./images.ts";
 import type { Chat } from "./importer.ts";
 import { isGitRepo, suggestSessionName, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
@@ -23,8 +24,10 @@ import { ensureYmWorktree, removeWorktree } from "./worktree.ts";
 
 export interface NewSessionInput {
   prompt: string;
-  /** First folder is the workspace; the rest become --add-dir roots. */
+  /** First folder is the workspace; the rest become --add-dir roots. In context mode, all are only named in the prompt. */
   folders: string[];
+  /** Start in the dev directory from settings, without a worktree. */
+  context?: boolean;
   /** Files behind the prompt's `[Image #N]` markers. */
   images?: string[];
   name?: string;
@@ -62,6 +65,13 @@ export function resolveDir(input: string): string {
   return realpathSync(path);
 }
 
+/** The dev directory, then the context folders outside it, which the agent couldn't open otherwise. */
+function contextDirs(devDir: string | undefined, folders: string[]): string[] {
+  if (!devDir) throw new Error("Set a dev directory first: press Ctrl-F.");
+  const root = resolveDir(devDir);
+  return [root, ...folders.filter((f) => f !== root && !f.startsWith(`${root}/`))];
+}
+
 /** Codex runs in ym's worktree for the session, created on first use. */
 const codexDir = (s: Session) => (s.worktree ? ensureYmWorktree(s.cwd, s.worktree) : s.cwd);
 
@@ -95,13 +105,15 @@ export async function startSession(
   input: NewSessionInput,
   onCreated?: (s: Session) => void,
 ): Promise<Session> {
-  const [cwd, ...addDirs] = [...new Set(input.folders.map(resolveDir))];
+  const settings = loadSettings();
+  const folders = [...new Set(input.folders.map(resolveDir))];
+  const [cwd, ...addDirs] = input.context ? contextDirs(settings.devDir, folders) : folders;
   if (!cwd) throw new Error("No folder to start in.");
   const agent = input.agent ?? "cursor";
   if (!agentAvailable(agent)) throw new Error(`${notFound(agent)}.`);
-  const settings = loadSettings();
   const id = newSessionId();
   const prompt = input.prompt.trim();
+  const sent = input.context ? contextPrompt(prompt, folders) : prompt;
   const images = referencedImages(prompt, input.images ?? []);
   const namingPrompt = stripImageMarkers(prompt);
   const draft: Session = {
@@ -114,16 +126,17 @@ export async function startSession(
     createdAt: Date.now(),
   };
   if (addDirs.length) draft.addDirs = addDirs;
+  if (input.context) draft.contextFolders = folders;
   if (prompt) draft.prompt = prompt;
   if (images.length) draft.images = input.images;
-  const useWorktree = settings.useWorktrees && isGitRepo(cwd);
+  const useWorktree = !input.context && settings.useWorktrees && isGitRepo(cwd);
   if (useWorktree) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
   if (settings.nameSessions && namingPrompt && !input.name?.trim()) void nameInBackground(draft, namingPrompt);
   const suggestName = () =>
     useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined;
-  if (agent === "codex") return startCodex(draft, prompt, images, await suggestName());
+  if (agent === "codex") return startCodex(draft, sent, images, await suggestName());
 
   const withImages = images.length > 0;
   let chatId: string;
@@ -140,9 +153,9 @@ export async function startSession(
   const session: Session = { ...current, chatId };
   if (suggested) session.worktree = uniqueWorktreeName(suggested, cwd);
   saveSession(session);
-  appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!prompt });
-  const paneId = newAgentPane(agentLaunch(session, withImages ? undefined : prompt));
-  if (withImages) await submitWhenReady(paneId, promptPastes(prompt, input.images ?? []));
+  appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!sent });
+  const paneId = newAgentPane(agentLaunch(session, withImages ? undefined : sent));
+  if (withImages) await submitWhenReady(paneId, promptPastes(sent, input.images ?? []));
   return session;
 }
 

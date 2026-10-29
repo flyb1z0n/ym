@@ -17,6 +17,8 @@ export interface Settings {
   enabledAgents: Agent[];
   /** Launch Cursor with `--force` so it runs commands without asking. */
   cursorAutoRun: boolean;
+  /** Folder holding all the user's repos; context-mode sessions start here. Unset until first asked for. */
+  devDir?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +60,7 @@ export function loadSettings(): Settings {
       defaultAgent: enabledAgents.includes(defaultAgent) ? defaultAgent : enabledAgents[0]!,
       enabledAgents,
       cursorAutoRun: flag(value.cursorAutoRun, DEFAULT_SETTINGS.cursorAutoRun),
+      ...(typeof value.devDir === "string" && value.devDir ? { devDir: value.devDir } : {}),
     };
   } catch {
     return { ...DEFAULT_SETTINGS, enabledAgents: [...DEFAULT_SETTINGS.enabledAgents] };

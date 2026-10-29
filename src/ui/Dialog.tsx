@@ -149,6 +149,34 @@ export function RenameDialog({ value, width, height, onChange, onSave, onCancel 
   );
 }
 
+interface DevDirProps extends RenameProps {
+  error?: string;
+}
+
+export function DevDirDialog({ value, error, width, height, onChange, onSave, onCancel }: DevDirProps) {
+  useInput((_input, key) => {
+    if (key.escape) onCancel();
+  });
+
+  const bounds = dialogBounds(width, height, 8);
+  return (
+    <DialogFrame title="Dev directory" width={width} height={height} rows={5}>
+      <Text wrap="truncate">The folder that contains all your repositories.</Text>
+      <Text dimColor wrap="truncate">
+        Context sessions start here; @tags become prompt hints.
+      </Text>
+      <Text> </Text>
+      <Box>
+        <Text color="yellow">› </Text>
+        <LineInput value={value} width={Math.max(1, bounds.width - 6)} onChange={onChange} onSubmit={onSave} />
+      </Box>
+      <Text color={error ? "red" : undefined} dimColor={!error} wrap="truncate">
+        {error ?? "Enter saves · Esc cancels"}
+      </Text>
+    </DialogFrame>
+  );
+}
+
 export function HighlightDialog({ value, width, height, onSave, onCancel }: HighlightDialogProps) {
   const [selected, setSelected] = useState(Math.max(0, HIGHLIGHT_OPTIONS.findIndex((o) => o.id === value)));
 

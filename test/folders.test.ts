@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../src/core/folders.ts";
+import { buildFolderIndex, contextPrompt, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../src/core/folders.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "ym-folders-")));
 for (const d of ["common-api", "front-end", "private/ym", "private/notes", "repo/.git", "repo/src", ".hidden"]) {
@@ -78,6 +78,16 @@ describe("folders", () => {
     expect(parsePrompt("@common-api fix:\n  - login @common-api\n\nthen ship ", index).prompt).toBe(
       "fix:\n  - login\n\nthen ship",
     );
+  });
+
+  test("contextPrompt lists the folders after the prompt", () => {
+    expect(contextPrompt("fix login", ["/dev/api", "/dev/web"])).toBe(
+      "fix login\n\nContext: start by looking at these folders; they're most relevant to this task:\n- /dev/api\n- /dev/web",
+    );
+    expect(contextPrompt("", ["/dev/api"])).toBe(
+      "Context: start by looking at these folders; they're most relevant to this task:\n- /dev/api",
+    );
+    expect(contextPrompt("fix login", [])).toBe("fix login");
   });
 
   test("index excludes ym worktree folders from suggestions", () => {

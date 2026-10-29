@@ -1,10 +1,13 @@
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Box, Text, useApp, useInput, useWindowSize } from "ink";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   importChat,
   removeSession,
   renameSession,
+  resolveDir,
   resumeSession,
   setHighlightColor,
   startSession,
@@ -24,15 +27,22 @@ import {
   type TabId,
 } from "../core/filter.ts";
 import { AGENT_COLORS, AGENT_NAMES, agentAvailable, agentOf, nextAgent, notFound } from "../core/agents.ts";
-import { buildFolderIndex, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../core/folders.ts";
+import {
+  buildFolderIndex,
+  folderRoots,
+  parsePrompt,
+  rootFolders,
+  suggestFolders,
+  trailingTag,
+} from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
 import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
-import { tildify } from "./format.ts";
-import { ConfirmDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
+import { folder, tildify } from "./format.ts";
+import { ConfirmDialog, DevDirDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
 import { ImportPicker } from "./ImportPicker.tsx";
 import { LineInput } from "./LineInput.tsx";
 import { inputLineCount, promptHighlights, repeatInput } from "./promptText.ts";
@@ -48,12 +58,14 @@ type Mode =
   | { kind: "highlight"; id: string; color: HighlightColor | undefined }
   | { kind: "confirm"; id: string; action: ConfirmAction }
   | { kind: "import"; chats: Chat[] }
-  | { kind: "settings" };
+  | { kind: "settings" }
+  /** `then` is where it returns: the prompt with context mode on, or settings. */
+  | { kind: "devDir"; text: string; error?: string; then: "context" | "settings" };
 
 const AGENT_KEY = " · ⇧Tab agent";
-const keysShort = (agentKey: string) => `⏎ open · ↑↓ select · @ folder${agentKey} · ^/ all keys`;
+const keysShort = (agentKey: string) => `⏎ open · ↑↓ select · @ folder${agentKey} · ^F context · ^/ all keys`;
 const keysFull = (agentKey: string) =>
-  `⏎ open · ↑↓ select · @ folder${agentKey} · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ${keyLabel(DASH_KEY())} back here · ^/ fewer keys`;
+  `⏎ open · ↑↓ select · @ folder${agentKey} · ^F context · ^T group · ^S settings · ^N same prompt · ^P pin · ^R rename · ^L highlight · ^D stop · ^A archive · ^X delete · ^O import · ${keyLabel(DASH_KEY())} back here · ^/ fewer keys`;
 const FOLDER_REFRESH_MS = 30_000;
 /** How long a launched Codex session may go without reporting its id before ym suspects untrusted hooks. */
 const CODEX_SILENT_MS = 20_000;
@@ -99,6 +111,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const [settings, setSettings] = useState(loadSettings);
   /** Agent for the prompt being typed; Shift-Tab cycles it, and each launch resets it to the default. */
   const [agent, setAgent] = useState(() => settings.defaultAgent);
+  /** @tags only add context to the prompt being typed; Ctrl-F toggles it, and each launch turns it off. */
+  const [contextMode, setContextMode] = useState(false);
   const [switchingSession, setSwitchingSession] = useState(false);
   const [showAllKeys, setShowAllKeys] = useState(false);
   const previousSelection = useRef<string | undefined>(undefined);
@@ -149,6 +163,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     ...(text.trim() && agentMissing ? [agentMissing] : []),
   ];
 
+  const inSettings = mode.kind === "settings" || (mode.kind === "devDir" && mode.then === "settings");
+
   const attempt = (fn: () => void): boolean => {
     try {
       fn();
@@ -168,7 +184,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        if (mode.kind === "settings") unshow();
+        if (inSettings) unshow();
         else if (currentPane && current && !isStarting(current.session)) show(currentPane.paneId);
         else unshow(loading);
       } catch (e) {
@@ -176,7 +192,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [currentPane?.paneId, current?.session.chatId, current?.session.launchedAt, mode.kind, loading]);
+  }, [currentPane?.paneId, current?.session.chatId, current?.session.launchedAt, inSettings, loading]);
 
   useEffect(() => {
     const currentId = current?.session.id;
@@ -197,6 +213,49 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     setSuggestion(0);
   };
 
+  const changeSettings = (next: typeof settings) => {
+    try {
+      saveSettings(next);
+      setSettings(next);
+      if (next.defaultAgent !== settings.defaultAgent || !next.enabledAgents.includes(agent)) {
+        setAgent(next.defaultAgent);
+      }
+    } catch (e) {
+      setFailure((e as Error).message);
+    }
+  };
+
+  const editDevDir = (then: "context" | "settings") => {
+    const dir = settings.devDir ?? folderRoots()[0] ?? join(homedir(), "dev");
+    setMode({ kind: "devDir", text: tildify(dir), then });
+  };
+
+  const saveDevDir = () => {
+    if (mode.kind !== "devDir") return;
+    let devDir: string;
+    try {
+      devDir = resolveDir(mode.text);
+    } catch (e) {
+      return setMode({ ...mode, error: (e as Error).message });
+    }
+    changeSettings({ ...settings, devDir });
+    if (mode.then === "context") setContextMode(true);
+    setMode(mode.then === "context" ? { kind: "main" } : { kind: "settings" });
+  };
+
+  const devDirDialog =
+    mode.kind === "devDir" ? (
+      <DevDirDialog
+        value={mode.text}
+        error={mode.error}
+        width={columns}
+        height={termRows}
+        onChange={(text) => setMode({ ...mode, text, error: undefined })}
+        onSave={saveDevDir}
+        onCancel={() => setMode(mode.then === "context" ? { kind: "main" } : { kind: "settings" })}
+      />
+    ) : null;
+
   const openCurrent = () => {
     if (!current) return;
     const { session } = current;
@@ -210,13 +269,16 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
 
   const launch = () => {
     if (errors.length) return;
-    const input = { prompt: parsed.prompt, folders, images, agent };
+    const input = contextMode
+      ? { prompt: parsed.prompt, folders: parsed.folders, images, agent, context: true }
+      : { prompt: parsed.prompt, folders, images, agent };
     setText("");
     setImages([]);
     setAgent(settings.defaultAgent);
+    setContextMode(false);
     setFailure(undefined);
     startSession(input, (s) => {
-      setLastCwd(s.cwd);
+      if (!s.contextFolders) setLastCwd(s.cwd);
       setTab("sessions");
       setSelectedId(s.id);
       refresh();
@@ -265,6 +327,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return setMode({ kind: "import", chats: scanAllChats().filter((c) => !tracked.has(c.chatId)) });
       }
       if (input === "s") return setMode({ kind: "settings" });
+      if (input === "f") return settings.devDir ? setContextMode((on) => !on) : editDevDir("context");
       if (input === "t") {
         const i = GROUP_MODES.findIndex((m) => m.id === group);
         return setGroup(GROUP_MODES[(i + 1) % GROUP_MODES.length]!.id);
@@ -278,6 +341,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         setText(repeat.text);
         setImages(repeat.images);
         setAgent(agentOf(session));
+        setContextMode(!!repeat.context);
         return setFailure(undefined);
       }
       if (input === "p") return attempt(() => togglePin(session));
@@ -316,49 +380,49 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     );
   }
 
-  if (mode.kind === "settings") {
+  if (inSettings) {
     return (
-      <SettingsView
-        settings={settings}
-        width={columns}
-        height={termRows}
-        onChange={(next) => {
-          try {
-            saveSettings(next);
-            setSettings(next);
-            if (next.defaultAgent !== settings.defaultAgent || !next.enabledAgents.includes(agent)) {
-              setAgent(next.defaultAgent);
-            }
-          } catch (e) {
-            setFailure((e as Error).message);
-          }
-        }}
-        onClose={() => setMode({ kind: "main" })}
-      />
+      <Box flexDirection="column" height={termRows}>
+        <SettingsView
+          settings={settings}
+          width={columns}
+          height={termRows}
+          active={mode.kind === "settings"}
+          onChange={changeSettings}
+          onEditDevDir={() => editDevDir("settings")}
+          onClose={() => setMode({ kind: "main" })}
+        />
+        {devDirDialog}
+      </Box>
     );
   }
 
   const showFailure = !errors.length && !suggestions.length && !!failure;
   const showCodexHint = !errors.length && !suggestions.length && !failure && !text && codexSilent;
+  const where =
+    contextMode && settings.devDir
+      ? `in ${tildify(settings.devDir)}${parsed.folders.length ? ` · context: ${parsed.folders.map(folder).join(", ")}` : ""}`
+      : `in ${folders.map(tildify).join(" + ")}`;
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
       ? "↑↓ choose a folder · Tab or Enter picks it · Esc hides suggestions"
       : failure ??
-        (showCodexHint
-          ? "Codex isn't reporting status yet: trust ym's hooks in Codex (/hooks)."
-          : `in ${folders.map(tildify).join(" + ")}`);
+        (showCodexHint ? "Codex isn't reporting status yet: trust ym's hooks in Codex (/hooks)." : where);
   const targetIsError = errors.length > 0 || showFailure || showCodexHint;
   const canSwitchAgent = settings.enabledAgents.length > 1;
   // Ctrl-N can bring back a disabled agent, so name it even when it's the only one on.
-  const agentPrefix = canSwitchAgent || agent !== settings.defaultAgent ? `${AGENT_NAMES[agent]} › ` : "";
-  const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length);
+  const showAgent = canSwitchAgent || agent !== settings.defaultAgent;
+  const agentPrefix = showAgent ? `${AGENT_NAMES[agent]}${contextMode ? " · " : " › "}` : "";
+  const contextPrefix = contextMode ? "context › " : "";
+  const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length - contextPrefix.length);
   const keys = (showAllKeys ? keysFull : keysShort)(canSwitchAgent ? AGENT_KEY : "");
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(keys, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
   const inputLines = Math.min(maxInputLines, inputLineCount(text, inputWidth));
   const listHeight = Math.max(MIN_LIST_HEIGHT, termRows - fixedLines - inputLines);
-  const modalOpen = mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight";
+  const modalOpen =
+    mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight" || mode.kind === "devDir";
   const inputDimmed = modalOpen || switchingSession;
   const modalTarget =
     mode.kind === "rename" || mode.kind === "confirm" || mode.kind === "highlight"
@@ -458,6 +522,9 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         <Text bold color={AGENT_COLORS[agent]} dimColor={inputDimmed}>
           {agentPrefix}
         </Text>
+        <Text bold color="yellow" dimColor={inputDimmed}>
+          {contextPrefix}
+        </Text>
         <LineInput
           value={text}
           width={inputWidth}
@@ -524,6 +591,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           onCancel={() => setMode({ kind: "main" })}
         />
       ) : null}
+      {devDirDialog}
     </Box>
   );
 }
