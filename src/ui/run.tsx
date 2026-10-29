@@ -20,7 +20,8 @@ export async function runDashboard(): Promise<void> {
   const app = render(
     <App hooksInstalled={isInstalled(self)} codexHooksInstalled={!hasCodex() || isCodexInstalled(self)} />,
     // By default every frame erases the whole UI and rewrites it; over ssh the blank state can reach the screen as a blink.
-    { exitOnCtrlC: false, incrementalRendering: true },
+    // On the primary screen tmux rewraps the last frame when the pane narrows, so Ink's erase misses rows and stale lines pile up above the UI.
+    { exitOnCtrlC: false, incrementalRendering: true, alternateScreen: true },
   );
   await app.waitUntilExit();
   if (extendedKeys) process.stdout.write(EXTENDED_KEYS_OFF);
