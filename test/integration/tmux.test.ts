@@ -21,7 +21,7 @@ chmodSync(process.env.YM_CODEX_BIN, 0o755);
 const actions = await import("../../src/core/actions.ts");
 const tmux = await import("../../src/core/tmux.ts");
 const { DEFAULT_SETTINGS, saveSettings } = await import("../../src/core/settings.ts");
-const { EventReader, listSessions, loadSession } = await import("../../src/core/store.ts");
+const { EventReader, listSessions, loadSession, saveSession } = await import("../../src/core/store.ts");
 const { applyEvents, deriveStatus, initialState } = await import("../../src/core/status.ts");
 
 const reader = new EventReader();
@@ -45,6 +45,9 @@ async function waitFor(id: string, want: string, timeoutMs = 8000) {
   }
   throw new Error(`status stayed ${last}, wanted ${want}`);
 }
+
+/** Multi-line prompts and long command lines scroll out of view, so this reads the scrollback too. */
+const history = (id: string) => tmux.tmux(["capture-pane", "-p", "-J", "-S", "-", "-t", pane(id)!.paneId]).stdout;
 
 const dashPanes = () =>
   tmux.tmux(["list-panes", "-t", "ym:=dash", "-F", "#{pane_id}"]).stdout.split("\n").filter(Boolean);
@@ -106,10 +109,10 @@ describe("tmux integration with a stub agent", () => {
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
     expect(s.addDirs).toEqual([extra]);
-    expect(s.worktree).toBe("do-the-thing");
+    expect(s.worktree).toBeUndefined();
     await waitFor(s.id, "your_turn");
     const p = pane(s.id)!;
-    expect(tmux.capturePane(p.paneId)).toContain(`--worktree do-the-thing --add-dir ${extra} do the thing`);
+    expect(history(s.id)).toContain(`--trust --add-dir ${extra} do the thing`);
 
     tmux.show(p.paneId);
     expect(pane(s.id)?.shown).toBe(true);
@@ -126,7 +129,7 @@ describe("tmux integration with a stub agent", () => {
     actions.resumeSession(s, pane(s.id));
     await waitFor(s.id, "your_turn");
     expect(pane(s.id)).toEqual({ paneId: p.paneId, dead: false, shown: true });
-    expect(tmux.capturePane(p.paneId)).toContain("--worktree do-the-thing");
+    expect(history(s.id)).not.toContain("--worktree");
 
     actions.stopSession(pane(s.id));
     await waitFor(s.id, "exited");
@@ -202,18 +205,14 @@ describe("tmux integration with a stub agent", () => {
     expect(listSessions().some((s) => s.id === id)).toBe(false);
   });
 
-  test("the setting can disable worktrees for new sessions", async () => {
-    saveSettings({ ...DEFAULT_SETTINGS, useWorktrees: false });
-    try {
-      const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
-      expect(s.worktree).toBeUndefined();
-      await waitFor(s.id, "your_turn");
-      const p = pane(s.id)!;
-      expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
-      actions.stopSession(p);
-    } finally {
-      saveSettings(DEFAULT_SETTINGS);
-    }
+  test("a new session's prompt asks the agent to make repo changes in a worktree it creates", async () => {
+    const s = await actions.startSession({ prompt: "shared workspace", folders: [dir] });
+    expect(s.prompt).toBe("shared workspace");
+    await waitFor(s.id, "your_turn");
+    const screen = history(s.id);
+    expect(screen).toContain("Worktrees: if this task needs changes in a git repository");
+    expect(screen).toContain(`${join(process.env.YM_HOME!, "worktrees")}/<repo>/<branch>`);
+    actions.stopSession(pane(s.id));
   }, 30000);
 
   test("context mode starts in the dev directory, without a worktree, and names the tagged folders in the prompt", async () => {
@@ -223,8 +222,7 @@ describe("tmux integration with a stub agent", () => {
       expect(s).toMatchObject({ cwd: dir, addDirs: [plain], contextFolders: [extra, plain], prompt: "fix login" });
       expect(s.worktree).toBeUndefined();
       await waitFor(s.id, "your_turn");
-      // The multi-line prompt scrolls the command line out of view, so read the scrollback too.
-      const screen = tmux.tmux(["capture-pane", "-p", "-J", "-S", "-", "-t", pane(s.id)!.paneId]).stdout;
+      const screen = history(s.id);
       expect(screen).toContain(`--add-dir ${plain} fix login`);
       expect(screen).toContain(`- ${extra}`);
       expect(screen).not.toContain("--worktree");
@@ -239,15 +237,6 @@ describe("tmux integration with a stub agent", () => {
       "Set a dev directory first",
     );
   });
-
-  test("a folder outside git gets a regular session even with worktrees on", async () => {
-    const s = await actions.startSession({ prompt: "not a repo", folders: [plain] });
-    expect(s.worktree).toBeUndefined();
-    await waitFor(s.id, "your_turn");
-    const p = pane(s.id)!;
-    expect(tmux.capturePane(p.paneId)).not.toContain("--worktree");
-    actions.stopSession(p);
-  }, 30000);
 
   test("a prompt with images is pasted into the prompt bar instead of passed as an argument", async () => {
     const image = join(plain, "shot one.png");
@@ -292,30 +281,11 @@ describe("tmux integration with a stub agent", () => {
       saveSettings(DEFAULT_SETTINGS);
     }
   }, 30000);
-
-  test("with naming disabled, or no prompt, the worktree is named after the session id", async () => {
-    const empty = await actions.startSession({ prompt: "", folders: [dir] });
-    expect(empty.worktree).toBe(empty.id);
-    actions.stopSession(pane(empty.id));
-
-    saveSettings({ ...DEFAULT_SETTINGS, nameWorktrees: false });
-    try {
-      const s = await actions.startSession({ prompt: "do the thing", folders: [dir] });
-      expect(s.worktree).toBe(s.id);
-      await waitFor(s.id, "your_turn");
-      expect(tmux.capturePane(pane(s.id)!.paneId)).toContain(`--worktree ${s.id}`);
-      actions.stopSession(pane(s.id));
-    } finally {
-      saveSettings(DEFAULT_SETTINGS);
-    }
-  }, 30000);
 });
 
 describe("tmux integration with a stub codex", () => {
   const stubId = (ymId: string) => `01a00000-0000-7000-8000-0000000000${ymId.slice(0, 2)}`;
   const hooksOff = () => join(process.env.YM_HOME!, "codex-hooks-off");
-  // Codex's command line wraps over many rows, so read the scrollback too.
-  const history = (id: string) => tmux.tmux(["capture-pane", "-p", "-J", "-S", "-", "-t", pane(id)!.paneId]).stdout;
   async function waitForText(id: string, text: string, timeoutMs = 8000) {
     const end = Date.now() + timeoutMs;
     while (!history(id).includes(text)) {
@@ -324,26 +294,38 @@ describe("tmux integration with a stub codex", () => {
     }
   }
 
-  test("launch in a ym worktree, learn the id from hooks, exit, resume by id, remove", async () => {
-    // `git worktree add` needs a commit to branch from.
-    Bun.spawnSync(["git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]);
+  test("launch in the workspace, learn the id from hooks, exit, resume by id, remove", async () => {
     const s = await actions.startSession({ prompt: "-fix the thing", folders: [dir, extra], agent: "codex" });
     expect(s.agent).toBe("codex");
-    expect(s.worktree).toMatch(/^do-the-thing(-\d+)?$/);
-    const wt = join(process.env.YM_HOME!, "worktrees", basename(dir), s.worktree!);
+    expect(s.worktree).toBeUndefined();
     await waitFor(s.id, "your_turn");
     expect(loadSession(s.id)?.chatId).toBe(stubId(s.id));
     const p = pane(s.id)!;
-    expect(history(s.id)).toContain(`stub codex: -C ${wt} --add-dir ${extra} -- -fix the thing`);
-    expect(history(s.id)).toContain(`cwd: ${wt}`);
+    expect(history(s.id)).toContain(`stub codex: -C ${dir} --add-dir ${extra} -- -fix the thing`);
+    expect(history(s.id)).toContain(`cwd: ${dir}`);
 
     tmux.sendLine(p.paneId, "exit");
     await waitFor(s.id, "exited");
     actions.resumeSession(loadSession(s.id)!, pane(s.id));
-    await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${wt}`);
+    await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${dir}`);
     await waitFor(s.id, "your_turn");
 
     await actions.removeSession(loadSession(s.id)!, pane(s.id));
+    expect(listSessions().some((x) => x.id === s.id)).toBe(false);
+  }, 30000);
+
+  test("an older session with a ym worktree resumes in it, and removing it cleans the worktree up", async () => {
+    // `git worktree add` needs a commit to branch from.
+    Bun.spawnSync(["git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]);
+    const id = "c0ffee00";
+    const s = { id, name: "old", agent: "codex" as const, cwd: dir, chatId: stubId(id), source: "ym" as const, createdAt: Date.now(), worktree: "old-thing" };
+    saveSession(s);
+    const wt = join(process.env.YM_HOME!, "worktrees", basename(dir), "old-thing");
+    actions.resumeSession(s, undefined);
+    await waitForText(id, `stub codex: resume ${stubId(id)} -C ${wt}`);
+    expect(history(id)).toContain(`cwd: ${wt}`);
+
+    await actions.removeSession(loadSession(id)!, pane(id));
     expect(existsSync(wt)).toBe(false);
   }, 30000);
 

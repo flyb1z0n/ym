@@ -14,7 +14,7 @@ export const installedHooksFile = () => join(ymHome(), "installed-hooks.json");
 export const hookShimFile = () => join(ymHome(), "bin", "ym-hook");
 export const settingsFile = () => join(ymHome(), "config.json");
 
-/** Worktrees ym creates itself, for agents that can't name their own. */
+/** Where agents are told to create worktrees (and where older Codex sessions have theirs). */
 export const ymWorktreesDir = () => join(ymHome(), "worktrees");
 
 export const cursorHome = () => process.env.YM_CURSOR_HOME ?? join(homedir(), ".cursor");

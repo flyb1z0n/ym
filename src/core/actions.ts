@@ -2,10 +2,10 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import { AGENT_NAMES, agentAvailable, agentOf, notFound } from "./agents.ts";
 import { codexCommand, codexModel, findCodexSession } from "./codex.ts";
 import { createChat, launchCommand, processingModel, PROMPT_BAR } from "./cursor.ts";
-import { contextPrompt } from "./folders.ts";
+import { contextPrompt, worktreePrompt } from "./folders.ts";
 import { promptPastes, referencedImages, stripImageMarkers } from "./images.ts";
 import type { Chat } from "./importer.ts";
-import { isGitRepo, suggestSessionName, suggestWorktreeName, uniqueWorktreeName } from "./naming.ts";
+import { suggestSessionName } from "./naming.ts";
 import { expandHome } from "./paths.ts";
 import { loadSettings } from "./settings.ts";
 import { isStarting, START_TIMEOUT_MS } from "./status.ts";
@@ -26,7 +26,7 @@ export interface NewSessionInput {
   prompt: string;
   /** First folder is the workspace; the rest become --add-dir roots. In context mode, all are only named in the prompt. */
   folders: string[];
-  /** Start in the dev directory from settings, without a worktree. */
+  /** Start in the dev directory from settings. */
   context?: boolean;
   /** Files behind the prompt's `[Image #N]` markers. */
   images?: string[];
@@ -72,7 +72,7 @@ function contextDirs(devDir: string | undefined, folders: string[]): string[] {
   return [root, ...folders.filter((f) => f !== root && !f.startsWith(`${root}/`))];
 }
 
-/** Codex runs in ym's worktree for the session, created on first use. */
+/** Codex sessions from before agents made their own worktrees run in the one ym made for them. */
 const codexDir = (s: Session) => (s.worktree ? ensureYmWorktree(s.cwd, s.worktree) : s.cwd);
 
 function agentLaunch(s: Session, prompt?: string, images?: string[]): AgentLaunch {
@@ -113,7 +113,7 @@ export async function startSession(
   if (!agentAvailable(agent)) throw new Error(`${notFound(agent)}.`);
   const id = newSessionId();
   const prompt = input.prompt.trim();
-  const sent = input.context ? contextPrompt(prompt, folders) : prompt;
+  const sent = worktreePrompt(input.context ? contextPrompt(prompt, folders) : prompt);
   const images = referencedImages(prompt, input.images ?? []);
   const namingPrompt = stripImageMarkers(prompt);
   const draft: Session = {
@@ -129,20 +129,15 @@ export async function startSession(
   if (input.context) draft.contextFolders = folders;
   if (prompt) draft.prompt = prompt;
   if (images.length) draft.images = input.images;
-  const useWorktree = !input.context && settings.useWorktrees && isGitRepo(cwd);
-  if (useWorktree) draft.worktree = id;
   saveSession(draft);
   onCreated?.(draft);
   if (settings.nameSessions && namingPrompt && !input.name?.trim()) void nameInBackground(draft, namingPrompt);
-  const suggestName = () =>
-    useWorktree && settings.nameWorktrees && namingPrompt ? suggestWorktreeName(namingPrompt) : undefined;
-  if (agent === "codex") return startCodex(draft, sent, images, await suggestName());
+  if (agent === "codex") return startCodex(draft, sent, images);
 
   const withImages = images.length > 0;
   let chatId: string;
-  let suggested: string | undefined;
   try {
-    [chatId, suggested] = await Promise.all([createChat(cwd), suggestName()]);
+    chatId = await createChat(cwd);
   } catch (e) {
     deleteSession(id);
     throw e;
@@ -151,7 +146,6 @@ export async function startSession(
   const current = loadSession(id);
   if (!current) throw new Error(`${draft.name} was removed before Cursor started.`);
   const session: Session = { ...current, chatId };
-  if (suggested) session.worktree = uniqueWorktreeName(suggested, cwd);
   saveSession(session);
   appendEvent(id, { ts: Date.now(), event: "ymLaunch", withPrompt: !!sent });
   const paneId = newAgentPane(agentLaunch(session, withImages ? undefined : sent));
@@ -172,11 +166,10 @@ async function nameInBackground(draft: Session, prompt: string): Promise<void> {
 }
 
 /** Codex can't create a chat up front: it launches right away and its SessionStart hook records the id. */
-function startCodex(draft: Session, prompt: string, images: string[], suggested: string | undefined): Session {
+function startCodex(draft: Session, prompt: string, images: string[]): Session {
   const current = loadSession(draft.id);
   if (!current) throw new Error(`${draft.name} was removed before Codex started.`);
   const session: Session = { ...current, launchedAt: Date.now() };
-  if (suggested) session.worktree = uniqueWorktreeName(suggested, session.cwd);
   let launch: AgentLaunch;
   try {
     launch = agentLaunch(session, prompt || undefined, images);

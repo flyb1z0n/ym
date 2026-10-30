@@ -46,8 +46,8 @@ export interface Session {
   /** Optional dashboard row highlight color. */
   highlightColor?: HighlightColor;
   /**
-   * Worktree (and branch) name. Cursor manages its own; Codex sessions run in one ym creates.
-   * Absent for sessions launched in the source workspace.
+   * Worktree (and branch) name, only on sessions from before agents created their own worktrees.
+   * Cursor manages its own; Codex sessions run in one ym created.
    */
   worktree?: string;
 }

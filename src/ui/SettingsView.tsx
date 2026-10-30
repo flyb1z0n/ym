@@ -47,24 +47,6 @@ const agentRow = (agent: Agent): Row => ({
 
 const ROWS: Row[] = [
   {
-    key: "useWorktrees",
-    label: "Use worktrees for new sessions",
-    describe: (s) =>
-      s.useWorktrees
-        ? "New sessions in git repos start in isolated worktrees; other folders open directly."
-        : "New sessions start in their selected folders.",
-  },
-  {
-    key: "nameWorktrees",
-    label: "Name worktrees from the prompt",
-    describe: (s) => {
-      if (!s.useWorktrees) return "Only applies when worktrees are on.";
-      return s.nameWorktrees
-        ? `${namingModel()} names the worktree and branch before launch (adds ~8 s).`
-        : "Worktrees and branches are named after the session id.";
-    },
-  },
-  {
     key: "nameSessions",
     label: "Name sessions from the prompt",
     describe: (s) =>
@@ -99,12 +81,23 @@ const ROWS: Row[] = [
         : "Cursor asks before running commands.",
   },
   {
+    key: "contextByDefault",
+    section: "Context mode",
+    label: "Start prompts in context mode",
+    describe: (s) => {
+      if (!s.contextByDefault) return "New prompts open their @folders as workspaces; Ctrl-F switches one prompt to context mode.";
+      return s.devDir
+        ? "New prompts start in context mode; Ctrl-F switches one prompt back to opening its @folders."
+        : "Applies once the dev directory is set.";
+    },
+  },
+  {
     key: "devDir",
     section: "Context mode",
     label: "Dev directory",
     describe: (s) =>
       s.devDir
-        ? "Ctrl-F sessions start here without a worktree; their @tags only point the agent at folders."
+        ? "Context sessions start here; their @tags only point the agent at folders."
         : "The folder that contains all your repositories. Ctrl-F asks for it the first time.",
     value: (s) => (s.devDir ? tildify(s.devDir) : "not set"),
     edit: true,

@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nextAgent } from "../src/core/agents.ts";
 import { settingsFile } from "../src/core/paths.ts";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, toggleAgent, type Settings } from "../src/core/settings.ts";
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  startsInContext,
+  toggleAgent,
+  type Settings,
+} from "../src/core/settings.ts";
 import { greeting } from "../src/ui/Header.tsx";
 
 let home: string;
@@ -20,28 +27,32 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees, worktree naming and session naming default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
+  test("session naming and context mode default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
-      useWorktrees: true,
-      nameWorktrees: true,
       nameSessions: true,
       callMeMain: false,
       defaultAgent: "cursor",
       enabledAgents: ["cursor", "codex"],
       cursorAutoRun: false,
+      contextByDefault: true,
     });
+  });
+
+  test("prompts start in context mode only when it's the default and a dev directory is set", () => {
+    expect(startsInContext(DEFAULT_SETTINGS)).toBe(false);
+    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev" })).toBe(true);
+    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev", contextByDefault: false })).toBe(false);
   });
 
   test("settings round-trip through config.json", () => {
     const settings: Settings = {
-      useWorktrees: false,
-      nameWorktrees: false,
       nameSessions: false,
       callMeMain: true,
       defaultAgent: "codex",
       enabledAgents: ["codex"],
       cursorAutoRun: true,
+      contextByDefault: false,
     };
     saveSettings(settings);
 
@@ -49,9 +60,9 @@ describe("settings", () => {
     expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual(settings);
   });
 
-  test("a config from before worktree naming keeps its value and gets the naming default", () => {
-    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false }));
-    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, useWorktrees: false });
+  test("a config from before context mode keeps its values, gets the new defaults, and drops the old worktree settings", () => {
+    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false, nameWorktrees: false, nameSessions: false }));
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, nameSessions: false });
   });
 
   test("the dev directory is unset by default, round-trips, and drops non-string values", () => {
