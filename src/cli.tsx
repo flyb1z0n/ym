@@ -30,9 +30,9 @@ In the dashboard, type a prompt and press Enter to start an agent; Shift-Enter, 
 Ctrl-J adds a line break. The input starts with the
 agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it among
 the agents turned on in settings.
-Tag folders with @. In context mode, the session starts in your dev directory (asked for the first
-time, and changeable in settings) and its @tags only point the agent at folders. Prompts start in
-context mode once the dev directory is set (turn that off in settings); Ctrl-F toggles it per prompt.
+Tag folders with @. In context mode, the session starts in your dev directory and its @tags only
+point the agent at folders. Context mode is on once the dev directory is set in settings (Ctrl-S),
+where it can also be turned off.
 Ctrl-T cycles how the list is grouped. Ctrl-/ shows every shortcut.
 ${tmux.keyLabel(tmux.DASH_KEY())} returns focus to the list from an agent pane or window.
 Folders offered for @tags come from past sessions, agent chats, and YM_ROOTS (default ~/dev).`;

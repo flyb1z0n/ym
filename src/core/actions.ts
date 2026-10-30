@@ -67,7 +67,7 @@ export function resolveDir(input: string): string {
 
 /** The dev directory, then the context folders outside it, which the agent couldn't open otherwise. */
 function contextDirs(devDir: string | undefined, folders: string[]): string[] {
-  if (!devDir) throw new Error("Set a dev directory first: press Ctrl-F.");
+  if (!devDir) throw new Error("Set a dev directory first in Ctrl-S settings.");
   const root = resolveDir(devDir);
   return [root, ...folders.filter((f) => f !== root && !f.startsWith(`${root}/`))];
 }
