@@ -1,4 +1,8 @@
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { AGENTS, agentAvailable } from "./core/agents.ts";
+import { folderRoots } from "./core/folders.ts";
 import { runHook } from "./core/hook.ts";
 import {
   codexHooksPath,
@@ -12,6 +16,7 @@ import {
 } from "./core/install.ts";
 import { hookShimFile } from "./core/paths.ts";
 import { buildId, selfCommand } from "./core/self.ts";
+import { loadSettings, saveSettings } from "./core/settings.ts";
 import { ensureDirs } from "./core/store.ts";
 import * as tmux from "./core/tmux.ts";
 
@@ -30,9 +35,9 @@ In the dashboard, type a prompt and press Enter to start an agent; Shift-Enter, 
 Ctrl-J adds a line break. The input starts with the
 agent it will use (the default from settings, Cursor unless changed); Shift-Tab switches it among
 the agents turned on in settings.
-Tag folders with @. In context mode, the session starts in your dev directory and its @tags only
-point the agent at folders. Context mode is on once the dev directory is set in settings (Ctrl-S),
-where it can also be turned off.
+ym and its sessions start in your dev directory, the folder that contains all your repositories;
+the first \`ym\` asks for it, and settings (Ctrl-S) can change it. Tag folders with @ to point the
+agent at them.
 Ctrl-T cycles how the list is grouped. Ctrl-/ shows every shortcut.
 ${tmux.keyLabel(tmux.DASH_KEY())} returns focus to the list from an agent pane or window.
 Folders offered for @tags come from past sessions, agent chats, and YM_ROOTS (default ~/dev).`;
@@ -47,7 +52,21 @@ function insideYmServer(): boolean {
   return socketPath.endsWith(`/${tmux.SOCKET()}`);
 }
 
-function open(): void {
+/** The saved dev directory, or the one the user picks now, which is saved for next time. */
+async function devDir(): Promise<string> {
+  const settings = loadSettings();
+  const saved = settings.devDir;
+  if (saved && existsSync(saved)) return saved;
+  if (!process.stdin.isTTY || !process.stdout.isTTY) fail("ym needs a terminal to ask for your dev directory.");
+  const { askDevDir } = await import("./ui/DevDirPrompt.tsx");
+  const { tildify } = await import("./ui/format.ts");
+  const dir = await askDevDir(tildify(saved ?? folderRoots()[0] ?? join(homedir(), "dev")), saved);
+  if (!dir) process.exit(0);
+  saveSettings({ ...settings, devDir: dir });
+  return dir;
+}
+
+async function open(): Promise<void> {
   if (!tmux.hasTmux()) fail("tmux is not installed (brew install tmux).");
   if (!AGENTS.some(agentAvailable)) {
     fail("neither Cursor CLI `agent` (https://cursor.com/cli) nor Codex CLI `codex` is on PATH.");
@@ -56,12 +75,13 @@ function open(): void {
   if (!isInstalled(selfCommand())) {
     console.error("ym: status hooks are not installed; sessions will show as working. Run `ym install`.");
   }
+  const cwd = await devDir();
   const dash = [...selfCommand(), "dash"];
   if (!tmux.serverRunning()) {
-    tmux.startServer(dash, process.cwd());
+    tmux.startServer(dash, cwd);
   } else {
     tmux.configureServer();
-    tmux.ensureDashWindow(dash, process.cwd(), buildId());
+    tmux.ensureDashWindow(dash, cwd, buildId());
   }
   tmux.selectDashboard();
   if (insideYmServer()) return;
@@ -74,7 +94,7 @@ const [command, ...args] = process.argv.slice(2);
 switch (command) {
   case undefined:
   case "open":
-    open();
+    await open();
     break;
   case "dash": {
     const { runDashboard } = await import("./ui/run.tsx");

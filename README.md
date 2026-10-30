@@ -9,7 +9,7 @@ It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus o
 - Start and monitor many Cursor and Codex sessions from one TUI.
 - See session states (`working`, `ready`, `stopped`, `imported`, etc.) in real time via each agent's hooks.
 - Jump into a running session pane instantly, then return to the dashboard.
-- Launch prompts from the dashboard with `@folder` tags; `Shift-Tab` picks the agent.
+- Launch prompts from the dashboard in your dev directory, with `@folder` tags pointing the agent at repos; `Shift-Tab` picks the agent.
 - Import past Cursor chats and Codex sessions and resume them.
 - Every new prompt asks the agent to make repo changes in a worktree it creates under `~/.ym/worktrees/<repo>/<branch>`, so your checkouts stay untouched.
 
@@ -67,8 +67,8 @@ Dropping an image on the terminal pastes its local path, which doesn't exist on 
 
 - Type a prompt and press `Enter` to start a new session with the default agent (Cursor unless changed in `Ctrl-s` settings).
 - `Shift-Enter` adds a line break for a multi-line prompt. It needs tmux 3.5+ and a terminal that reports modified keys (iTerm2, Ghostty, kitty, WezTerm). `Ctrl-j` works in any terminal, and so does `Option-Enter` when Option acts as Meta.
-- Use `@folder` tags in the prompt to target workspace folders.
-- In context mode (the input shows `context ›`) the session starts in your dev directory, the folder that contains all your repositories, and its `@folder` tags only add a note to the prompt that points the agent at those folders. Folders outside the dev directory are still added as workspace roots. Context mode is on once you set the dev directory in `Ctrl-s` settings; turn it off there with "Context mode".
+- Every session starts in your dev directory, the folder that contains all your repositories. The first `ym` asks for it (pre-filled with `~/dev`) and saves it; `ym` then opens there, and `Ctrl-s` settings can change it. If the saved folder is gone, `ym` asks again.
+- `@folder` tags in the prompt add a note that points the agent at those folders. Folders outside the dev directory are also added as workspace roots so the agent can open them.
 - The input starts with the agent it will use (e.g. `Cursor › `). `Shift-Tab` switches it for that prompt; after launch it goes back to the default.
 - The Agents section in `Ctrl-s` settings turns agents on and off; `Shift-Tab` cycles only through the ones that are on. With a single agent on, the input doesn't show its name. At least one agent stays on.
 - `Ctrl-g` returns focus to the dashboard list from an agent pane/window.

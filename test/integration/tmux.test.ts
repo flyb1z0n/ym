@@ -24,6 +24,7 @@ const { DEFAULT_SETTINGS, saveSettings } = await import("../../src/core/settings
 const { EventReader, listSessions, loadSession, saveSession } = await import("../../src/core/store.ts");
 const { applyEvents, deriveStatus, initialState } = await import("../../src/core/status.ts");
 
+const SETTINGS = { ...DEFAULT_SETTINGS, devDir: dir };
 const reader = new EventReader();
 const states = new Map<string, ReturnType<typeof initialState>>();
 const pane = (id: string) => tmux.listAgentPanes().get(id);
@@ -53,6 +54,7 @@ const dashPanes = () =>
   tmux.tmux(["list-panes", "-t", "ym:=dash", "-F", "#{pane_id}"]).stdout.split("\n").filter(Boolean);
 
 beforeAll(() => {
+  saveSettings(SETTINGS);
   tmux.startServer(["sleep", "600"], dir);
 });
 afterAll(() => {
@@ -107,12 +109,12 @@ describe("tmux integration with a stub agent", () => {
   });
 
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
-    const s = await actions.startSession({ prompt: "do the thing", folders: [dir, extra] });
-    expect(s.addDirs).toEqual([extra]);
+    const s = await actions.startSession({ prompt: "do the thing", folders: [plain] });
+    expect(s).toMatchObject({ cwd: dir, addDirs: [plain] });
     expect(s.worktree).toBeUndefined();
     await waitFor(s.id, "your_turn");
     const p = pane(s.id)!;
-    expect(history(s.id)).toContain(`--trust --add-dir ${extra} do the thing`);
+    expect(history(s.id)).toContain(`--trust --add-dir ${plain} do the thing`);
 
     tmux.show(p.paneId);
     expect(pane(s.id)?.shown).toBe(true);
@@ -215,27 +217,27 @@ describe("tmux integration with a stub agent", () => {
     actions.stopSession(pane(s.id));
   }, 30000);
 
-  test("context mode starts in the dev directory, without a worktree, and names the tagged folders in the prompt", async () => {
-    saveSettings({ ...DEFAULT_SETTINGS, devDir: dir });
-    try {
-      const s = await actions.startSession({ prompt: "fix login", folders: [extra, plain], context: true });
-      expect(s).toMatchObject({ cwd: dir, addDirs: [plain], contextFolders: [extra, plain], prompt: "fix login" });
-      expect(s.worktree).toBeUndefined();
-      await waitFor(s.id, "your_turn");
-      const screen = history(s.id);
-      expect(screen).toContain(`--add-dir ${plain} fix login`);
-      expect(screen).toContain(`- ${extra}`);
-      expect(screen).not.toContain("--worktree");
-      actions.stopSession(pane(s.id));
-    } finally {
-      saveSettings(DEFAULT_SETTINGS);
-    }
+  test("a session starts in the dev directory, without a worktree, and names the tagged folders in the prompt", async () => {
+    const s = await actions.startSession({ prompt: "fix login", folders: [extra, plain] });
+    expect(s).toMatchObject({ cwd: dir, addDirs: [plain], contextFolders: [extra, plain], prompt: "fix login" });
+    expect(s.worktree).toBeUndefined();
+    await waitFor(s.id, "your_turn");
+    const screen = history(s.id);
+    expect(screen).toContain(`--add-dir ${plain} fix login`);
+    expect(screen).toContain(`- ${extra}`);
+    expect(screen).not.toContain("--worktree");
+    actions.stopSession(pane(s.id));
   }, 30000);
 
-  test("context mode needs a dev directory", async () => {
-    await expect(actions.startSession({ prompt: "fix login", folders: [extra], context: true })).rejects.toThrow(
-      "Set a dev directory first",
-    );
+  test("a session needs a dev directory", async () => {
+    saveSettings(DEFAULT_SETTINGS);
+    try {
+      await expect(actions.startSession({ prompt: "fix login", folders: [extra] })).rejects.toThrow(
+        "Set a dev directory first",
+      );
+    } finally {
+      saveSettings(SETTINGS);
+    }
   });
 
   test("a prompt with images is pasted into the prompt bar instead of passed as an argument", async () => {
@@ -267,7 +269,7 @@ describe("tmux integration with a stub agent", () => {
     const renamed = await actions.startSession({ prompt: "do the thing", folders: [plain] }, (draft) =>
       actions.renameSession(draft, "mine"),
     );
-    saveSettings({ ...DEFAULT_SETTINGS, nameSessions: false });
+    saveSettings({ ...SETTINGS, nameSessions: false });
     try {
       const plainName = await actions.startSession({ prompt: "do the thing", folders: [plain] });
       await waitFor(renamed.id, "your_turn");
@@ -278,7 +280,7 @@ describe("tmux integration with a stub agent", () => {
       actions.stopSession(pane(renamed.id));
       actions.stopSession(pane(plainName.id));
     } finally {
-      saveSettings(DEFAULT_SETTINGS);
+      saveSettings(SETTINGS);
     }
   }, 30000);
 });
@@ -294,14 +296,14 @@ describe("tmux integration with a stub codex", () => {
     }
   }
 
-  test("launch in the workspace, learn the id from hooks, exit, resume by id, remove", async () => {
-    const s = await actions.startSession({ prompt: "-fix the thing", folders: [dir, extra], agent: "codex" });
+  test("launch in the dev directory, learn the id from hooks, exit, resume by id, remove", async () => {
+    const s = await actions.startSession({ prompt: "-fix the thing", folders: [plain], agent: "codex" });
     expect(s.agent).toBe("codex");
     expect(s.worktree).toBeUndefined();
     await waitFor(s.id, "your_turn");
     expect(loadSession(s.id)?.chatId).toBe(stubId(s.id));
     const p = pane(s.id)!;
-    expect(history(s.id)).toContain(`stub codex: -C ${dir} --add-dir ${extra} -- -fix the thing`);
+    expect(history(s.id)).toContain(`stub codex: -C ${dir} --add-dir ${plain} -- -fix the thing`);
     expect(history(s.id)).toContain(`cwd: ${dir}`);
 
     tmux.sendLine(p.paneId, "exit");
@@ -340,7 +342,7 @@ describe("tmux integration with a stub codex", () => {
       actions.stopSession(pane(s.id));
       actions.resumeSession(loadSession(s.id)!, pane(s.id));
       expect(loadSession(s.id)?.chatId).toBe(stubId(s.id));
-      await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${plain}`);
+      await waitForText(s.id, `stub codex: resume ${stubId(s.id)} -C ${dir}`);
       actions.stopSession(pane(s.id));
     } finally {
       rmSync(hooksOff(), { force: true });

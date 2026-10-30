@@ -37,7 +37,7 @@ import {
 } from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
 import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
-import { loadSettings, saveSettings, startsInContext } from "../core/settings.ts";
+import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
@@ -105,13 +105,10 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const [images, setImages] = useState<string[]>([]);
   const [suggestion, setSuggestion] = useState(0);
   const [dismissed, setDismissed] = useState<string>();
-  const [lastCwd, setLastCwd] = useState(process.cwd());
   const [externalFolders, setExternalFolders] = useState<string[]>([]);
   const [settings, setSettings] = useState(loadSettings);
   /** Agent for the prompt being typed; Shift-Tab cycles it, and each launch resets it to the default. */
   const [agent, setAgent] = useState(() => settings.defaultAgent);
-  /** @tags only add context to the prompt instead of picking its workspace. */
-  const contextMode = startsInContext(settings);
   const [switchingSession, setSwitchingSession] = useState(false);
   const [showAllKeys, setShowAllKeys] = useState(false);
   const previousSelection = useRef<string | undefined>(undefined);
@@ -134,15 +131,18 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     Date.now() - (current.session.launchedAt ?? 0) > CODEX_SILENT_MS;
 
   useEffect(() => {
+    const roots = [...new Set([...(settings.devDir ? [settings.devDir] : []), ...folderRoots()])];
     const load = () =>
-      setExternalFolders(buildFolderIndex(scanAllChats().map((c) => c.cwd), rootFolders()).filter((p) => existsSync(p)));
+      setExternalFolders(buildFolderIndex(scanAllChats().map((c) => c.cwd), rootFolders(roots)).filter((p) => existsSync(p)));
     load();
     const timer = setInterval(load, FOLDER_REFRESH_MS);
     return () => clearInterval(timer);
-  }, []);
+  }, [settings.devDir]);
 
   const folderIndex = useMemo(() => {
-    const recent = [...rows].sort((a, b) => b.lastActivity - a.lastActivity).flatMap((r) => [r.session.cwd, ...(r.session.addDirs ?? [])]);
+    const recent = [...rows]
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+      .flatMap(({ session: s }) => s.contextFolders ?? [s.cwd, ...(s.addDirs ?? [])]);
     return buildFolderIndex(recent, externalFolders);
   }, [rows, externalFolders]);
 
@@ -150,7 +150,6 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const suggestions = tag && dismissed !== text ? suggestFolders(tag.query, folderIndex) : [];
   const suggestionIndex = Math.min(suggestion, Math.max(0, suggestions.length - 1));
   const parsed = useMemo(() => parsePrompt(text, folderIndex), [text, folderIndex]);
-  const folders = parsed.folders.length ? parsed.folders : [lastCwd];
   const agentMissing = useMemo(() => (agentAvailable(agent) ? undefined : notFound(agent)), [agent]);
   // The tag still being typed isn't an error while suggestions are offered for it.
   const errors = [
@@ -263,15 +262,12 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
 
   const launch = () => {
     if (errors.length) return;
-    const input = contextMode
-      ? { prompt: parsed.prompt, folders: parsed.folders, images, agent, context: true }
-      : { prompt: parsed.prompt, folders, images, agent };
+    const input = { prompt: parsed.prompt, folders: parsed.folders, images, agent };
     setText("");
     setImages([]);
     setAgent(settings.defaultAgent);
     setFailure(undefined);
     startSession(input, (s) => {
-      if (!s.contextFolders) setLastCwd(s.cwd);
       setTab("sessions");
       setSelectedId(s.id);
       refresh();
@@ -390,10 +386,9 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
 
   const showFailure = !errors.length && !suggestions.length && !!failure;
   const showCodexHint = !errors.length && !suggestions.length && !failure && !text && codexSilent;
-  const where =
-    contextMode && settings.devDir
-      ? `in ${tildify(settings.devDir)}${parsed.folders.length ? ` · context: ${parsed.folders.map(folder).join(", ")}` : ""}`
-      : `in ${folders.map(tildify).join(" + ")}`;
+  const where = settings.devDir
+    ? `in ${tildify(settings.devDir)}${parsed.folders.length ? ` · context: ${parsed.folders.map(folder).join(", ")}` : ""}`
+    : "Set your dev directory in Ctrl-S settings to start sessions.";
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
@@ -404,9 +399,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const canSwitchAgent = settings.enabledAgents.length > 1;
   // Ctrl-N can bring back a disabled agent, so name it even when it's the only one on.
   const showAgent = canSwitchAgent || agent !== settings.defaultAgent;
-  const agentPrefix = showAgent ? `${AGENT_NAMES[agent]}${contextMode ? " · " : " › "}` : "";
-  const contextPrefix = contextMode ? "context › " : "";
-  const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length - contextPrefix.length);
+  const agentPrefix = showAgent ? `${AGENT_NAMES[agent]} › ` : "";
+  const inputWidth = Math.max(1, columns - INPUT_CHROME - agentPrefix.length);
   const keys = (showAllKeys ? keysFull : keysShort)(canSwitchAgent ? AGENT_KEY : "");
   const fixedLines = HEADER_HEIGHT + suggestions.length + 1 + linesFor(keys, columns);
   const maxInputLines = Math.max(1, Math.min(MAX_INPUT_LINES, termRows - fixedLines - MIN_LIST_HEIGHT));
@@ -511,9 +505,6 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       >
         <Text bold color={AGENT_COLORS[agent]} dimColor={inputDimmed}>
           {agentPrefix}
-        </Text>
-        <Text bold color="yellow" dimColor={inputDimmed}>
-          {contextPrefix}
         </Text>
         <LineInput
           value={text}

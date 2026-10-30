@@ -25,7 +25,7 @@ export interface Session {
   cwd: string;
   /** Extra workspace roots, passed as --add-dir. */
   addDirs?: string[];
-  /** Set when started in context mode: the @tagged folders named in the prompt rather than opened as workspaces. */
+  /** The @tagged folders named in the prompt; absent on imported sessions and ones that started in their first @folder. */
   contextFolders?: string[];
   /** Prompt the session was started with, absent on imported and older sessions. */
   prompt?: string;

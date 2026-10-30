@@ -24,10 +24,8 @@ import { ensureYmWorktree, removeWorktree } from "./worktree.ts";
 
 export interface NewSessionInput {
   prompt: string;
-  /** First folder is the workspace; the rest become --add-dir roots. In context mode, all are only named in the prompt. */
+  /** Named in the prompt for the agent to look at; the session itself starts in the dev directory. */
   folders: string[];
-  /** Start in the dev directory from settings. */
-  context?: boolean;
   /** Files behind the prompt's `[Image #N]` markers. */
   images?: string[];
   name?: string;
@@ -65,8 +63,8 @@ export function resolveDir(input: string): string {
   return realpathSync(path);
 }
 
-/** The dev directory, then the context folders outside it, which the agent couldn't open otherwise. */
-function contextDirs(devDir: string | undefined, folders: string[]): string[] {
+/** The dev directory, then the tagged folders outside it, which the agent couldn't open otherwise. */
+function sessionDirs(devDir: string | undefined, folders: string[]): [string, ...string[]] {
   if (!devDir) throw new Error("Set a dev directory first in Ctrl-S settings.");
   const root = resolveDir(devDir);
   return [root, ...folders.filter((f) => f !== root && !f.startsWith(`${root}/`))];
@@ -107,13 +105,12 @@ export async function startSession(
 ): Promise<Session> {
   const settings = loadSettings();
   const folders = [...new Set(input.folders.map(resolveDir))];
-  const [cwd, ...addDirs] = input.context ? contextDirs(settings.devDir, folders) : folders;
-  if (!cwd) throw new Error("No folder to start in.");
+  const [cwd, ...addDirs] = sessionDirs(settings.devDir, folders);
   const agent = input.agent ?? "cursor";
   if (!agentAvailable(agent)) throw new Error(`${notFound(agent)}.`);
   const id = newSessionId();
   const prompt = input.prompt.trim();
-  const sent = worktreePrompt(input.context ? contextPrompt(prompt, folders) : prompt);
+  const sent = worktreePrompt(contextPrompt(prompt, folders));
   const images = referencedImages(prompt, input.images ?? []);
   const namingPrompt = stripImageMarkers(prompt);
   const draft: Session = {
@@ -124,9 +121,9 @@ export async function startSession(
     chatId: "",
     source: "ym",
     createdAt: Date.now(),
+    contextFolders: folders,
   };
   if (addDirs.length) draft.addDirs = addDirs;
-  if (input.context) draft.contextFolders = folders;
   if (prompt) draft.prompt = prompt;
   if (images.length) draft.images = input.images;
   saveSession(draft);
