@@ -79,14 +79,16 @@ export function LineInput({
   usePaste((pasted) => insert(transformPaste?.(pasted) ?? pasted), { isActive: focus });
 
   if (!value) {
+    // Laid out at full length, an overlong placeholder squeezes the text beside it onto extra lines.
+    const shown = width ? placeholder.slice(0, Math.max(0, focus ? width - 1 : width)) : placeholder;
     return focus ? (
       <Text wrap="truncate">
         <Text inverse> </Text>
-        <Text dimColor>{placeholder}</Text>
+        <Text dimColor>{shown}</Text>
       </Text>
     ) : (
       <Text dimColor wrap="truncate">
-        {placeholder}
+        {shown}
       </Text>
     );
   }

@@ -9,6 +9,7 @@ import { App } from "./App.tsx";
 /** xterm modifyOtherKeys mode 1: only keys that are otherwise ambiguous, like Shift-Enter, arrive extended. */
 const EXTENDED_KEYS_ON = "\x1b[>4;1m";
 const EXTENDED_KEYS_OFF = "\x1b[>4;0m";
+const HOME_AND_ERASE = "\x1b[H\x1b[J";
 
 export async function runDashboard(): Promise<void> {
   ensureDirs();
@@ -23,6 +24,15 @@ export async function runDashboard(): Promise<void> {
     // On the primary screen tmux rewraps the last frame when the pane narrows, so Ink's erase misses rows and stale lines pile up above the UI.
     { exitOnCtrlC: false, incrementalRendering: true, alternateScreen: true },
   );
+  // A resize rewraps rows already on screen, and frames drawn before the signal arrives can be wider
+  // than the new size. Ink erases relative to the cursor and can't find those rows, so wipe from the
+  // top (the dashboard fills the screen) and let the next frame redraw everything.
+  const redraw = () => {
+    app.clear();
+    process.stdout.write(HOME_AND_ERASE);
+  };
+  process.stdout.on("resize", redraw);
   await app.waitUntilExit();
+  process.stdout.off("resize", redraw);
   if (extendedKeys) process.stdout.write(EXTENDED_KEYS_OFF);
 }
