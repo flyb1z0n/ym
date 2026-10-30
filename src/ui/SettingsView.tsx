@@ -83,11 +83,11 @@ const ROWS: Row[] = [
   {
     key: "contextByDefault",
     section: "Context mode",
-    label: "Start prompts in context mode",
+    label: "Context mode",
     describe: (s) => {
-      if (!s.contextByDefault) return "New prompts open their @folders as workspaces; Ctrl-F switches one prompt to context mode.";
+      if (!s.contextByDefault) return "Prompts open their @folders as workspaces.";
       return s.devDir
-        ? "New prompts start in context mode; Ctrl-F switches one prompt back to opening its @folders."
+        ? "Prompts start in the dev directory; their @folders only point the agent at where to look."
         : "Applies once the dev directory is set.";
     },
   },
@@ -98,7 +98,7 @@ const ROWS: Row[] = [
     describe: (s) =>
       s.devDir
         ? "Context sessions start here; their @tags only point the agent at folders."
-        : "The folder that contains all your repositories. Ctrl-F asks for it the first time.",
+        : "The folder that contains all your repositories; set it to use context mode.",
     value: (s) => (s.devDir ? tildify(s.devDir) : "not set"),
     edit: true,
   },

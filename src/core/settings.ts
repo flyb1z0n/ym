@@ -14,9 +14,9 @@ export interface Settings {
   enabledAgents: Agent[];
   /** Launch Cursor with `--force` so it runs commands without asking. */
   cursorAutoRun: boolean;
-  /** New prompts start in context mode; only takes effect once `devDir` is set. */
+  /** Prompts launch in context mode; only takes effect once `devDir` is set. */
   contextByDefault: boolean;
-  /** Folder holding all the user's repos; context-mode sessions start here. Unset until first asked for. */
+  /** Folder holding all the user's repos; context-mode sessions start here. Unset until set in settings. */
   devDir?: string;
 }
 
@@ -45,7 +45,7 @@ export function toggleAgent(settings: Settings, agent: Agent): Settings {
   return { ...settings, enabledAgents, defaultAgent };
 }
 
-/** Whether a fresh prompt starts in context mode, which needs a dev directory. */
+/** Whether prompts launch in context mode, which needs a dev directory. */
 export const startsInContext = (settings: Settings): boolean => settings.contextByDefault && !!settings.devDir;
 
 export function loadSettings(): Settings {

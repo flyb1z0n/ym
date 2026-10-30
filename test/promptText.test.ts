@@ -68,9 +68,9 @@ describe("repeatInput", () => {
     expect(repeatInput(session(), "[Image #1] fix this")).toEqual({ text: "@~/dev/app @/tmp/lib fix this", images: [] });
   });
 
-  test("a context session tags its context folders and turns context mode back on", () => {
+  test("a context session tags its context folders instead of the dev directory", () => {
     const s = session({ cwd: `${homedir()}/dev`, contextFolders: [`${homedir()}/dev/app`, "/tmp/lib"], prompt: "fix" });
-    expect(repeatInput(s)).toEqual({ text: "@~/dev/app @/tmp/lib fix", images: [], context: true });
+    expect(repeatInput(s)).toEqual({ text: "@~/dev/app @/tmp/lib fix", images: [] });
   });
 
   test("returns nothing without a prompt", () => {
