@@ -39,8 +39,13 @@ export interface Group {
   label?: string;
   status?: Status;
   pinned?: boolean;
+  /** The context folders shared by a folder group's sessions. */
+  folders?: string[];
   rows: Row[];
 }
+
+/** The folders a session is about: its @tagged context, or the folder it runs in when it has none. */
+export const sessionFolders = (s: Session): string[] => (s.contextFolders?.length ? s.contextFolders : [s.cwd]);
 
 const STATUS_ORDER: Status[] = ["working", "error", "stale", "imported", "your_turn", "exited"];
 
@@ -86,13 +91,15 @@ function groupUnpinned(rows: Row[], mode: GroupMode): Group[] {
       rows: rows.filter((r) => r.status === status).sort(STATUS_SORT[status] ?? byRecent),
     })).filter((g) => g.rows.length);
   }
-  const byFolder = new Map<string, Row[]>();
+  const byFolder = new Map<string, Group>();
   for (const r of [...rows].sort(byRecent)) {
-    const list = byFolder.get(r.session.cwd) ?? [];
-    list.push(r);
-    byFolder.set(r.session.cwd, list);
+    const folders = sessionFolders(r.session);
+    const key = folders.join("\n");
+    const group = byFolder.get(key) ?? { key, label: folders.join(", "), folders, rows: [] };
+    group.rows.push(r);
+    byFolder.set(key, group);
   }
-  return [...byFolder].map(([cwd, list]) => ({ key: cwd, label: cwd, rows: list }));
+  return [...byFolder.values()];
 }
 
 /** Rows in display order, which is also the selection order. */

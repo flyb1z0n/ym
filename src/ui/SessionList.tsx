@@ -19,8 +19,10 @@ interface Props {
 
 type Item = { kind: "header"; group: Group } | { kind: "row"; row: Row; nested: boolean; pinned: boolean };
 
-const folderLabel = (row: Row) =>
-  folder(row.session.cwd) + (row.session.addDirs?.length ? ` +${row.session.addDirs.length}` : "");
+const folderLabel = ({ session: s }: Row) =>
+  s.contextFolders?.length
+    ? s.contextFolders.map(folder).join(", ")
+    : folder(s.cwd) + (s.addDirs?.length ? ` +${s.addDirs.length}` : "");
 
 export function SessionList({ groups, mode, selectedId, width, height, tab, dimmed = false, defaultAgent }: Props) {
   const spinner = useSpinner(groups.some((g) => g.rows.some((r) => r.status === "working")));
@@ -50,7 +52,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
   const statusWidth = mode === "status" ? 2 : 12;
   const ageWidth = 4;
   const folderColumn = Math.min(16, Math.max(6, Math.floor(inner * 0.25)));
-  // Folder mode names the folder in each header, except the Pinned one, which mixes folders.
+  // Folder mode names the folders in each header, except the Pinned one, which mixes them.
   const folderWidthFor = (pinned: boolean) => (mode === "folder" && !pinned ? 0 : folderColumn);
   const nameWidthFor = (folderWidth: number) =>
     Math.max(4, inner - indent - statusWidth - (folderWidth ? folderWidth + 1 : 0) - ageWidth - 2);
@@ -65,7 +67,7 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
             <Text key={`h-${group.key}`} dimColor={dimmed} wrap="truncate">
               <Text bold color={color}>
                 {group.status ? icon(group.status) : group.pinned ? "★" : "▸"}{" "}
-                {mode === "folder" && !group.pinned ? tildify(group.key) : group.label}
+                {group.folders ? group.folders.map(tildify).join(", ") : group.label}
               </Text>
               <Text dimColor> {group.rows.length}</Text>
             </Text>
