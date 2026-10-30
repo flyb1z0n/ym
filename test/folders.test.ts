@@ -2,7 +2,15 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildFolderIndex, contextPrompt, parsePrompt, rootFolders, suggestFolders, trailingTag } from "../src/core/folders.ts";
+import {
+  buildFolderIndex,
+  contextPrompt,
+  parsePrompt,
+  rootFolders,
+  suggestFolders,
+  trailingTag,
+  worktreePrompt,
+} from "../src/core/folders.ts";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "ym-folders-")));
 for (const d of ["common-api", "front-end", "private/ym", "private/notes", "repo/.git", "repo/src", ".hidden"]) {
@@ -88,6 +96,18 @@ describe("folders", () => {
       "Context: start by looking at these folders; they're most relevant to this task:\n- /dev/api",
     );
     expect(contextPrompt("fix login", [])).toBe("fix login");
+  });
+
+  test("worktreePrompt asks the agent to make repo changes in a worktree under ym's folder", () => {
+    process.env.YM_HOME = "/ym-home";
+    try {
+      const sent = worktreePrompt("fix login");
+      expect(sent.startsWith("fix login\n\nWorktrees: if this task needs changes in a git repository")).toBe(true);
+      expect(sent).toContain("git -C <repository> worktree add -b <branch> /ym-home/worktrees/<repo>/<branch>");
+      expect(worktreePrompt("")).toBe("");
+    } finally {
+      delete process.env.YM_HOME;
+    }
   });
 
   test("index excludes ym worktree folders from suggestions", () => {

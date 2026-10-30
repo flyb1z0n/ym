@@ -111,3 +111,14 @@ export function contextPrompt(prompt: string, folders: string[]): string {
   const list = folders.map((f) => `- ${f}`).join("\n");
   return `${prompt}\n\nContext: start by looking at these folders; they're most relevant to this task:\n${list}`.trim();
 }
+
+/** Tells the agent to keep repo changes out of the user's checkouts, in a worktree it creates. */
+export function worktreePrompt(prompt: string): string {
+  if (!prompt) return prompt;
+  const path = `${ymWorktreesDir()}/<repo>/<branch>`;
+  return (
+    `${prompt}\n\nWorktrees: if this task needs changes in a git repository, don't edit its checkout. ` +
+    `First create a worktree on a new branch at ${path} ` +
+    `(\`git -C <repository> worktree add -b <branch> ${path}\`) and make the changes there.`
+  );
+}

@@ -27,11 +27,9 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees, worktree naming, session naming and context mode default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
+  test("session naming and context mode default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
-      useWorktrees: true,
-      nameWorktrees: true,
       nameSessions: true,
       callMeMain: false,
       defaultAgent: "cursor",
@@ -49,8 +47,6 @@ describe("settings", () => {
 
   test("settings round-trip through config.json", () => {
     const settings: Settings = {
-      useWorktrees: false,
-      nameWorktrees: false,
       nameSessions: false,
       callMeMain: true,
       defaultAgent: "codex",
@@ -64,9 +60,9 @@ describe("settings", () => {
     expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual(settings);
   });
 
-  test("a config from before worktree naming keeps its value and gets the naming default", () => {
-    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false }));
-    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, useWorktrees: false });
+  test("a config from before context mode keeps its values, gets the new defaults, and drops the old worktree settings", () => {
+    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false, nameWorktrees: false, nameSessions: false }));
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, nameSessions: false });
   });
 
   test("the dev directory is unset by default, round-trips, and drops non-string values", () => {

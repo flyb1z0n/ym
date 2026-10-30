@@ -10,11 +10,7 @@ fi
 
 # Naming calls: answer like a model would, untidy on purpose.
 if [[ "${1:-}" == "-p" ]]; then
-  if [[ "${!#}" == *"one-sentence title"* ]]; then
-    echo '"Do the thing for the user."'
-  else
-    echo "Do The Thing!"
-  fi
+  echo '"Do the thing for the user."'
   exit 0
 fi
 

@@ -1,5 +1,5 @@
 export const AGENT_BIN = () => process.env.YM_AGENT_BIN ?? "agent";
-/** Model used for regular agent processing. Kept separate from worktree naming. */
+/** Model used for regular agent processing. Kept separate from session naming. */
 export const processingModel = () => process.env.YM_PROCESSING_MODEL;
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;

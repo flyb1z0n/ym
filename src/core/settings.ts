@@ -4,9 +4,6 @@ import { settingsFile, ymHome } from "./paths.ts";
 import type { Agent } from "./types.ts";
 
 export interface Settings {
-  useWorktrees: boolean;
-  /** Ask a small model to name the worktree after the prompt instead of using the session id. */
-  nameWorktrees: boolean;
   /** Ask a small model for a one-sentence session name instead of showing the prompt's first line. */
   nameSessions: boolean;
   /** Greet the user as "Main" instead of "Master". */
@@ -24,8 +21,6 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  useWorktrees: true,
-  nameWorktrees: true,
   nameSessions: true,
   callMeMain: false,
   defaultAgent: "cursor",
@@ -59,8 +54,6 @@ export function loadSettings(): Settings {
     const enabledAgents = agentList(value.enabledAgents);
     const defaultAgent = isAgent(value.defaultAgent) ? value.defaultAgent : DEFAULT_SETTINGS.defaultAgent;
     return {
-      useWorktrees: flag(value.useWorktrees, DEFAULT_SETTINGS.useWorktrees),
-      nameWorktrees: flag(value.nameWorktrees, DEFAULT_SETTINGS.nameWorktrees),
       nameSessions: flag(value.nameSessions, DEFAULT_SETTINGS.nameSessions),
       callMeMain: flag(value.callMeMain, DEFAULT_SETTINGS.callMeMain),
       defaultAgent: enabledAgents.includes(defaultAgent) ? defaultAgent : enabledAgents[0]!,

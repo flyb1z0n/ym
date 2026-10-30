@@ -126,11 +126,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const currentPane = current ? panes.get(current.session.id) : undefined;
   const currentAgent = current ? AGENT_NAMES[agentOf(current.session)] : "";
   const loading =
-    current && isStarting(current.session) && current.status === "working"
-      ? current.session.worktree
-        ? `Preparing the worktree and starting ${currentAgent}…`
-        : `Starting ${currentAgent}…`
-      : "";
+    current && isStarting(current.session) && current.status === "working" ? `Starting ${currentAgent}…` : "";
   const codexSilent =
     !!current &&
     agentOf(current.session) === "codex" &&
