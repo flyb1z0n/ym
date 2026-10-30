@@ -202,7 +202,7 @@ function stripOursCodex(file: CodexHooksFile, installed: Set<string>): CodexHook
 
 export const codexConfigPath = () => join(codexHome(), "config.toml");
 
-/** Codex trusts subfolders of a trusted folder, so one entry covers every worktree ym creates. */
+/** Codex trusts subfolders of a trusted folder, so one entry covers every worktree under ym's folder. */
 function worktreesTrust(): string {
   mkdirSync(ymWorktreesDir(), { recursive: true });
   return `[projects.${JSON.stringify(realpathSync(ymWorktreesDir()))}]\ntrust_level = "trusted"\n`;
