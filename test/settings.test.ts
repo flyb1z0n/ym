@@ -8,7 +8,6 @@ import {
   DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
-  startsInContext,
   toggleAgent,
   type Settings,
 } from "../src/core/settings.ts";
@@ -27,7 +26,7 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("session naming and context mode default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
+  test("session naming defaults to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
       nameSessions: true,
@@ -35,14 +34,7 @@ describe("settings", () => {
       defaultAgent: "cursor",
       enabledAgents: ["cursor", "codex"],
       cursorAutoRun: false,
-      contextByDefault: true,
     });
-  });
-
-  test("prompts start in context mode only when it's the default and a dev directory is set", () => {
-    expect(startsInContext(DEFAULT_SETTINGS)).toBe(false);
-    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev" })).toBe(true);
-    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev", contextByDefault: false })).toBe(false);
   });
 
   test("settings round-trip through config.json", () => {
@@ -52,7 +44,7 @@ describe("settings", () => {
       defaultAgent: "codex",
       enabledAgents: ["codex"],
       cursorAutoRun: true,
-      contextByDefault: false,
+      devDir: "/Users/me/dev",
     };
     saveSettings(settings);
 
@@ -60,8 +52,11 @@ describe("settings", () => {
     expect(JSON.parse(readFileSync(settingsFile(), "utf8"))).toEqual(settings);
   });
 
-  test("a config from before context mode keeps its values, gets the new defaults, and drops the old worktree settings", () => {
-    writeFileSync(settingsFile(), JSON.stringify({ useWorktrees: false, nameWorktrees: false, nameSessions: false }));
+  test("an older config keeps its values, gets the new defaults, and drops the old worktree and context mode settings", () => {
+    writeFileSync(
+      settingsFile(),
+      JSON.stringify({ useWorktrees: false, nameWorktrees: false, contextByDefault: false, nameSessions: false }),
+    );
     expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, nameSessions: false });
   });
 

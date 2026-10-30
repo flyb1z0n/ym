@@ -163,7 +163,7 @@ export function DevDirDialog({ value, error, width, height, onChange, onSave, on
     <DialogFrame title="Dev directory" width={width} height={height} rows={5}>
       <Text wrap="truncate">The folder that contains all your repositories.</Text>
       <Text dimColor wrap="truncate">
-        Context sessions start here; @tags become prompt hints.
+        Sessions start here; @tags point the agent at folders.
       </Text>
       <Text> </Text>
       <Box>

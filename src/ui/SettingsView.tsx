@@ -47,6 +47,16 @@ const agentRow = (agent: Agent): Row => ({
 
 const ROWS: Row[] = [
   {
+    key: "devDir",
+    label: "Dev directory",
+    describe: (s) =>
+      s.devDir
+        ? "ym and its sessions start here; @tags point the agent at folders."
+        : "The folder that contains all your repositories; ym asks for it on start.",
+    value: (s) => (s.devDir ? tildify(s.devDir) : "not set"),
+    edit: true,
+  },
+  {
     key: "nameSessions",
     label: "Name sessions from the prompt",
     describe: (s) =>
@@ -79,28 +89,6 @@ const ROWS: Row[] = [
       s.cursorAutoRun
         ? "Cursor runs commands without asking (--force) unless they're explicitly denied."
         : "Cursor asks before running commands.",
-  },
-  {
-    key: "contextByDefault",
-    section: "Context mode",
-    label: "Context mode",
-    describe: (s) => {
-      if (!s.contextByDefault) return "Prompts open their @folders as workspaces.";
-      return s.devDir
-        ? "Prompts start in the dev directory; their @folders only point the agent at where to look."
-        : "Applies once the dev directory is set.";
-    },
-  },
-  {
-    key: "devDir",
-    section: "Context mode",
-    label: "Dev directory",
-    describe: (s) =>
-      s.devDir
-        ? "Context sessions start here; their @tags only point the agent at folders."
-        : "The folder that contains all your repositories; set it to use context mode.",
-    value: (s) => (s.devDir ? tildify(s.devDir) : "not set"),
-    edit: true,
   },
 ];
 
