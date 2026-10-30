@@ -99,6 +99,17 @@ const ROWS: Row[] = [
         : "Cursor asks before running commands.",
   },
   {
+    key: "contextByDefault",
+    section: "Context mode",
+    label: "Start prompts in context mode",
+    describe: (s) => {
+      if (!s.contextByDefault) return "New prompts open their @folders as workspaces; Ctrl-F switches one prompt to context mode.";
+      return s.devDir
+        ? "New prompts start in context mode; Ctrl-F switches one prompt back to opening its @folders."
+        : "Applies once the dev directory is set.";
+    },
+  },
+  {
     key: "devDir",
     section: "Context mode",
     label: "Dev directory",

@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nextAgent } from "../src/core/agents.ts";
 import { settingsFile } from "../src/core/paths.ts";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, toggleAgent, type Settings } from "../src/core/settings.ts";
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  startsInContext,
+  toggleAgent,
+  type Settings,
+} from "../src/core/settings.ts";
 import { greeting } from "../src/ui/Header.tsx";
 
 let home: string;
@@ -20,7 +27,7 @@ afterEach(() => {
 });
 
 describe("settings", () => {
-  test("worktrees, worktree naming and session naming default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
+  test("worktrees, worktree naming, session naming and context mode default to enabled, Cursor is the default agent, every agent is on, and auto-run is off", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS).toEqual({
       useWorktrees: true,
@@ -30,7 +37,14 @@ describe("settings", () => {
       defaultAgent: "cursor",
       enabledAgents: ["cursor", "codex"],
       cursorAutoRun: false,
+      contextByDefault: true,
     });
+  });
+
+  test("prompts start in context mode only when it's the default and a dev directory is set", () => {
+    expect(startsInContext(DEFAULT_SETTINGS)).toBe(false);
+    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev" })).toBe(true);
+    expect(startsInContext({ ...DEFAULT_SETTINGS, devDir: "/Users/me/dev", contextByDefault: false })).toBe(false);
   });
 
   test("settings round-trip through config.json", () => {
@@ -42,6 +56,7 @@ describe("settings", () => {
       defaultAgent: "codex",
       enabledAgents: ["codex"],
       cursorAutoRun: true,
+      contextByDefault: false,
     };
     saveSettings(settings);
 

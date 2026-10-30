@@ -37,7 +37,7 @@ import {
 } from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
 import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
-import { loadSettings, saveSettings } from "../core/settings.ts";
+import { loadSettings, saveSettings, startsInContext } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
@@ -111,8 +111,8 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const [settings, setSettings] = useState(loadSettings);
   /** Agent for the prompt being typed; Shift-Tab cycles it, and each launch resets it to the default. */
   const [agent, setAgent] = useState(() => settings.defaultAgent);
-  /** @tags only add context to the prompt being typed; Ctrl-F toggles it, and each launch turns it off. */
-  const [contextMode, setContextMode] = useState(false);
+  /** @tags only add context to the prompt being typed; Ctrl-F toggles it, and each launch resets it to the default. */
+  const [contextMode, setContextMode] = useState(() => startsInContext(settings));
   const [switchingSession, setSwitchingSession] = useState(false);
   const [showAllKeys, setShowAllKeys] = useState(false);
   const previousSelection = useRef<string | undefined>(undefined);
@@ -220,6 +220,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
       if (next.defaultAgent !== settings.defaultAgent || !next.enabledAgents.includes(agent)) {
         setAgent(next.defaultAgent);
       }
+      if (next.contextByDefault !== settings.contextByDefault) setContextMode(startsInContext(next));
     } catch (e) {
       setFailure((e as Error).message);
     }
@@ -275,7 +276,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
     setText("");
     setImages([]);
     setAgent(settings.defaultAgent);
-    setContextMode(false);
+    setContextMode(startsInContext(settings));
     setFailure(undefined);
     startSession(input, (s) => {
       if (!s.contextFolders) setLastCwd(s.cwd);

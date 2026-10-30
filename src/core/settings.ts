@@ -17,6 +17,8 @@ export interface Settings {
   enabledAgents: Agent[];
   /** Launch Cursor with `--force` so it runs commands without asking. */
   cursorAutoRun: boolean;
+  /** New prompts start in context mode; only takes effect once `devDir` is set. */
+  contextByDefault: boolean;
   /** Folder holding all the user's repos; context-mode sessions start here. Unset until first asked for. */
   devDir?: string;
 }
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultAgent: "cursor",
   enabledAgents: [...AGENTS],
   cursorAutoRun: false,
+  contextByDefault: true,
 };
 
 const flag = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
@@ -47,6 +50,9 @@ export function toggleAgent(settings: Settings, agent: Agent): Settings {
   return { ...settings, enabledAgents, defaultAgent };
 }
 
+/** Whether a fresh prompt starts in context mode, which needs a dev directory. */
+export const startsInContext = (settings: Settings): boolean => settings.contextByDefault && !!settings.devDir;
+
 export function loadSettings(): Settings {
   try {
     const value = JSON.parse(readFileSync(settingsFile(), "utf8")) as Partial<Settings>;
@@ -60,6 +66,7 @@ export function loadSettings(): Settings {
       defaultAgent: enabledAgents.includes(defaultAgent) ? defaultAgent : enabledAgents[0]!,
       enabledAgents,
       cursorAutoRun: flag(value.cursorAutoRun, DEFAULT_SETTINGS.cursorAutoRun),
+      contextByDefault: flag(value.contextByDefault, DEFAULT_SETTINGS.contextByDefault),
       ...(typeof value.devDir === "string" && value.devDir ? { devDir: value.devDir } : {}),
     };
   } catch {
