@@ -62,6 +62,21 @@ describe("grouping", () => {
     expect(names(groups[0]!.rows)).toEqual(["stale-9", "error-4", "working-3", "your_turn-2"]);
   });
 
+  test("by folder: sessions with context group by their context folders, not where they run", () => {
+    const withContext = (r: Row, contextFolders: string[]) => ({ ...r, session: { ...r.session, contextFolders } });
+    const groups = groupRows(
+      [
+        withContext(row("working", 3, "/dev"), ["/dev/x", "/dev/y"]),
+        withContext(row("working", 2, "/dev"), ["/dev/x"]),
+        withContext(row("working", 1, "/dev"), ["/dev/x", "/dev/y"]),
+        withContext(row("working", 0, "/dev"), []),
+      ],
+      "folder",
+    );
+    expect(groups.map((g) => g.folders)).toEqual([["/dev/x", "/dev/y"], ["/dev/x"], ["/dev"]]);
+    expect(groups.map((g) => g.rows.length)).toEqual([2, 1, 1]);
+  });
+
   test("by date: one flat list without a header", () => {
     const groups = groupRows(active, "date");
     expect(groups).toHaveLength(1);
