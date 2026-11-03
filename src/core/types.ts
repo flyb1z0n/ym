@@ -43,7 +43,7 @@ export interface Session {
   archivedAt?: number;
   /** Set while pinned to the top of the dashboard list. */
   pinnedAt?: number;
-  /** Optional dashboard row highlight color. */
+  /** Optional color of the session name on the dashboard. */
   highlightColor?: HighlightColor;
   /**
    * Worktree (and branch) name, only on sessions from before agents created their own worktrees.

@@ -81,18 +81,16 @@ export function SessionList({ groups, mode, selectedId, width, height, tab, dimm
         const folderWidth = folderWidthFor(item.pinned);
         const nameWidth = nameWidthFor(folderWidth);
         return (
-          <Text
-            key={row.session.id}
-            dimColor={dimmed}
-            wrap="truncate"
-            inverse={selectedRow}
-            backgroundColor={selectedRow ? undefined : row.session.highlightColor}
-          >
+          <Text key={row.session.id} dimColor={dimmed} wrap="truncate" inverse={selectedRow}>
             {" ".repeat(item.nested ? indent : 0)}
             <Text color={style.color}>
               {fit(mode === "status" ? icon(row.status) : `${icon(row.status)} ${style.label}`, statusWidth)}
             </Text>
-            <Text dimColor={row.session.archivedAt !== undefined}>
+            <Text
+              color={row.session.highlightColor}
+              bold={row.session.highlightColor !== undefined}
+              dimColor={row.session.archivedAt !== undefined}
+            >
               {fit(row.session.name, Math.max(1, nameWidth - agentLabel.length))}
             </Text>
             {agentLabel ? <Text dimColor>{agentLabel}</Text> : null}{" "}
