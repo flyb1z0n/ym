@@ -13,6 +13,7 @@ interface Props {
 }
 
 const AGENT_WIDTH = "cursor".length;
+const POINTER_WIDTH = 2;
 
 export function ImportPicker({ chats, width, height, onImport, onClose }: Props) {
   const [query, setQuery] = useState("");
@@ -38,7 +39,7 @@ export function ImportPicker({ chats, width, height, onImport, onClose }: Props)
   const inner = width - 4;
   const ageWidth = 4;
   const folderWidth = Math.min(40, Math.floor(inner * 0.4));
-  const titleWidth = Math.max(4, inner - AGENT_WIDTH - folderWidth - ageWidth - 3);
+  const titleWidth = Math.max(4, inner - POINTER_WIDTH - AGENT_WIDTH - folderWidth - ageWidth - 3);
 
   return (
     <Box borderStyle="round" width={width} height={height} flexDirection="column" paddingX={1}>
@@ -65,13 +66,17 @@ export function ImportPicker({ chats, width, height, onImport, onClose }: Props)
       {visible.length === 0 ? (
         <Text dimColor>No chats to import.</Text>
       ) : (
-        visible.slice(start, start + bodyHeight).map((chat, i) => (
-          <Text key={chat.chatId} wrap="truncate" inverse={start + i === index}>
-            <Text dimColor>{fit(chat.agent, AGENT_WIDTH)}</Text> {fit(chat.title, titleWidth)}{" "}
-            <Text dimColor>{fit(tildify(chat.cwd), folderWidth)}</Text>{" "}
-            <Text dimColor>{age(chat.updatedAt).padStart(ageWidth)}</Text>
-          </Text>
-        ))
+        visible.slice(start, start + bodyHeight).map((chat, i) => {
+          const current = start + i === index;
+          return (
+            <Text key={chat.chatId} wrap="truncate" inverse={current}>
+              <Text color="cyan">{current ? "› " : "  "}</Text>
+              <Text dimColor>{fit(chat.agent, AGENT_WIDTH)}</Text> {fit(chat.title, titleWidth)}{" "}
+              <Text dimColor>{fit(tildify(chat.cwd), folderWidth)}</Text>{" "}
+              <Text dimColor>{age(chat.updatedAt).padStart(ageWidth)}</Text>
+            </Text>
+          );
+        })
       )}
     </Box>
   );
