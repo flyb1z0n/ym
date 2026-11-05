@@ -1,8 +1,8 @@
 import { Box, render, Text, useApp, useInput } from "ink";
 import { useEffect, useState } from "react";
 import { resolveDir } from "../core/actions.ts";
+import { DIR_KEYS, DirInput } from "./DirInput.tsx";
 import { tildify } from "./format.ts";
-import { LineInput } from "./LineInput.tsx";
 
 interface Props {
   initial: string;
@@ -58,20 +58,18 @@ export function DevDirPrompt({ initial, width, onPick, missing }: Props) {
         Sessions start here; @tags point the agent at folders. Ctrl-S settings can change it.
       </Text>
       <Text> </Text>
-      <Box>
-        <Text color="green">› </Text>
-        <LineInput
-          value={value}
-          width={Math.max(1, width - 6)}
-          onChange={(v) => {
-            setValue(v);
-            setError(undefined);
-          }}
-          onSubmit={pick}
-        />
-      </Box>
+      <DirInput
+        value={value}
+        width={Math.max(1, width - 4)}
+        color="green"
+        onChange={(v) => {
+          setValue(v);
+          setError(undefined);
+        }}
+        onSubmit={pick}
+      />
       <Text color={error ? "red" : undefined} dimColor={!error} wrap="truncate">
-        {error ?? "Enter saves · Esc cancels"}
+        {error ?? DIR_KEYS}
       </Text>
     </Box>
   );

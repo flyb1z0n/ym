@@ -67,7 +67,7 @@ Dropping an image on the terminal pastes its local path, which doesn't exist on 
 
 - Type a prompt and press `Enter` to start a new session with the default agent (Cursor unless changed in `Ctrl-s` settings).
 - `Shift-Enter` adds a line break for a multi-line prompt. It needs tmux 3.5+ and a terminal that reports modified keys (iTerm2, Ghostty, kitty, WezTerm). `Ctrl-j` works in any terminal, and so does `Option-Enter` when Option acts as Meta.
-- Every session starts in your dev directory, the folder that contains all your repositories. The first `ym` asks for it (pre-filled with `~/dev`) and saves it; `ym` then opens there, and `Ctrl-s` settings can change it. If the saved folder is gone, `ym` asks again.
+- Every session starts in your dev directory, the folder that contains all your repositories. The first `ym` asks for it (pre-filled with `~/dev`) and saves it; `ym` then opens there, and `Ctrl-s` settings can change it. If the saved folder is gone, `ym` asks again. While you type the path, the folders that complete it are listed below; `↑↓` pick one and `Tab` fills it in.
 - `@folder` tags in the prompt add a note that points the agent at those folders. Folders outside the dev directory are also added as workspace roots so the agent can open them.
 - The session list shows each session's tagged folders, and folder grouping groups by them. A session without tags shows the folder it runs in.
 - The input starts with the agent it will use (e.g. `Cursor › `). `Shift-Tab` switches it for that prompt; after launch it goes back to the default.

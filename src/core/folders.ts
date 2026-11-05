@@ -9,10 +9,10 @@ export function folderRoots(): string[] {
   return raw.split(":").filter(Boolean).map(expandHome).filter((p) => existsSync(p));
 }
 
-function subdirs(dir: string): string[] {
+function subdirs(dir: string, hidden = false): string[] {
   try {
     return readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+      .filter((e) => e.isDirectory() && (hidden || !e.name.startsWith(".")))
       .map((e) => join(dir, e.name))
       .sort();
   } catch {
@@ -53,15 +53,18 @@ export function trailingTag(text: string): TagToken | undefined {
 
 const looksLikePath = (q: string) => q.startsWith("~") || q.startsWith("/") || q.startsWith(".");
 
+/** Folders completing a typed path: the subfolders of one ending in "/", else the siblings starting with its last part. */
+export function completeDir(path: string, limit = 6): string[] {
+  const expanded = expandHome(path);
+  const dir = expanded.endsWith("/") ? expanded : dirname(expanded);
+  const prefix = expanded.endsWith("/") ? "" : basename(expanded);
+  return subdirs(dir, prefix.startsWith("."))
+    .filter((p) => basename(p).toLowerCase().startsWith(prefix.toLowerCase()))
+    .slice(0, limit);
+}
+
 export function suggestFolders(query: string, index: string[], limit = 6): string[] {
-  if (looksLikePath(query)) {
-    const expanded = expandHome(query);
-    const dir = expanded.endsWith("/") ? expanded : dirname(expanded);
-    const prefix = expanded.endsWith("/") ? "" : basename(expanded);
-    return subdirs(dir)
-      .filter((p) => basename(p).toLowerCase().startsWith(prefix.toLowerCase()))
-      .slice(0, limit);
-  }
+  if (looksLikePath(query)) return completeDir(query, limit);
   const q = query.toLowerCase();
   const byName = index.filter((p) => basename(p).toLowerCase().startsWith(q));
   const tail = (p: string) => p.split("/").slice(-3).join("/").toLowerCase();
