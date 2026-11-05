@@ -82,6 +82,16 @@ describe("tmux integration with a stub agent", () => {
     expect(tmux.tmux(["show-environment", "-g", "COLORTERM"]).stdout.trim()).toBe("COLORTERM=truecolor");
   });
 
+  test("the dashboard renders in colour even when the server was started with FORCE_COLOR=0", async () => {
+    const out = join(dir, "dash-force-color");
+    tmux.tmux(["set-environment", "-g", "FORCE_COLOR", "0"]);
+    tmux.ensureDashWindow(["sh", "-c", `printf %s "$FORCE_COLOR" > ${out}; exec sleep 600`], dir, "another-build");
+    tmux.tmux(["set-environment", "-gu", "FORCE_COLOR"]);
+    const end = Date.now() + 5000;
+    while (!existsSync(out) && Date.now() < end) await Bun.sleep(50);
+    expect(await Bun.file(out).text()).toBe("3");
+  });
+
   test("the dashboard knows whether the latest client attached through ym ssh", async () => {
     const { [tmux.REMOTE_ENV]: _, ...localEnv } = process.env;
     const attach = async (env: Record<string, string>) => {

@@ -50,6 +50,10 @@ function must(args: string[], stdin?: string): string {
 
 const envArgs = (env: Record<string, string>) => Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
 
+// The server keeps the environment of whatever shell started it, and agent shells export FORCE_COLOR=0;
+// without colour the dashboard loses its selection highlight too. tmux maps truecolor down for the outer terminal.
+const DASH_ENV = envArgs({ FORCE_COLOR: "3" });
+
 export const hasTmux = () => Bun.which("tmux") !== null;
 
 export const serverRunning = () => tmux(["has-session", "-t", `=${SESSION}`]).code === 0;
@@ -95,7 +99,7 @@ export function listAgentPanes(): Map<string, PaneInfo> {
 
 /** Creates the ym server with the dashboard UI in the left pane of its first window. */
 export function startServer(dashCommand: string[], cwd: string): void {
-  must(["new-session", "-d", "-s", SESSION, "-n", DASH_WINDOW, "-c", cwd, ...dashCommand]);
+  must(["new-session", "-d", "-s", SESSION, "-n", DASH_WINDOW, "-c", cwd, ...DASH_ENV, ...dashCommand]);
   configureServer();
   ensureDashLayout(cwd);
 }
@@ -154,10 +158,12 @@ export const recordBuild = (id: string) => void tmux(["set-option", "-g", "@ym_b
 export function ensureDashWindow(dashCommand: string[], cwd: string, build: string): void {
   const windows = tmux(["list-windows", "-t", `=${SESSION}`, "-F", "#{window_name}"]).stdout.split("\n");
   if (!windows.includes(DASH_WINDOW)) {
-    must(["new-window", "-d", "-t", `${SESSION}:`, "-n", DASH_WINDOW, "-c", cwd, ...dashCommand]);
+    must(["new-window", "-d", "-t", `${SESSION}:`, "-n", DASH_WINDOW, "-c", cwd, ...DASH_ENV, ...dashCommand]);
   } else {
     const dead = tmux(["display-message", "-p", "-t", UI_PANE, "#{pane_dead}"]).stdout.trim() === "1";
-    if (dead || runningBuild() !== build) must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...dashCommand]);
+    if (dead || runningBuild() !== build) {
+      must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...DASH_ENV, ...dashCommand]);
+    }
   }
   adoptLegacyPanes();
   ensureDashLayout(cwd);
