@@ -1,6 +1,7 @@
 import { Box, render, Text, useApp, useInput } from "ink";
 import { useEffect, useState } from "react";
 import { resolveDir } from "../core/actions.ts";
+import { latinKey } from "../core/layouts.ts";
 import { DIR_KEYS, DirInput } from "./DirInput.tsx";
 import { tildify } from "./format.ts";
 
@@ -26,7 +27,7 @@ export function DevDirPrompt({ initial, width, onPick, missing }: Props) {
 
   useInput((input, key) => {
     if (picked || cancelled) return;
-    if (key.escape || (key.ctrl && input === "c")) setCancelled(true);
+    if (key.escape || (key.ctrl && latinKey(input) === "c")) setCancelled(true);
   });
 
   const pick = () => {

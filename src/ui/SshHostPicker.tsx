@@ -1,5 +1,6 @@
 import { Box, render, Text, useApp, useInput } from "ink";
 import { useEffect, useMemo, useState } from "react";
+import { latinKey } from "../core/layouts.ts";
 import { describeHost, forgetHost, type SshHost } from "../ssh/hosts.ts";
 import { LineInput } from "./LineInput.tsx";
 import { age, fit, windowStart } from "./format.ts";
@@ -69,6 +70,7 @@ export function SshHostPicker({ hosts: initial, width, height, onPick, onForget 
 
   useInput((input, key) => {
     if (picked || cancelled) return;
+    input = latinKey(input);
     if (key.ctrl && input === "c") return setCancelled(true);
     if (confirming) {
       if (input === "y" && forgetting) {

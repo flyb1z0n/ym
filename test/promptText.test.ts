@@ -136,6 +136,10 @@ describe("LineInput", () => {
     expect(await typeInto(true, ["ab", "\x1b[13;2u", "c", "\x1b\r", "d", "\n", "e", "\r"])).toBe("ab\nc\nd\ne");
   });
 
+  test("editing keys work on a Cyrillic layout, where Ctrl-W arrives as Ctrl-ц", async () => {
+    expect(await typeInto(false, ["fix the", "\x1b[1094;5u", "\r"])).toBe("fix ");
+  });
+
   test("single-line inputs submit on Shift-Enter and turn Ctrl-J into a space", async () => {
     expect(await typeInto(false, ["ab", "\n", "c", "\x1b[13;2u"])).toBe("ab c");
   });

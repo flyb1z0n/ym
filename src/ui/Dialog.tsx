@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { latinKey } from "../core/layouts.ts";
 import type { HighlightColor } from "../core/types.ts";
 import { DIR_KEYS, DIR_SUGGESTIONS, DirInput } from "./DirInput.tsx";
 import { LineInput } from "./LineInput.tsx";
@@ -107,6 +108,7 @@ export function ConfirmDialog({
   const [choice, setChoice] = useState<Choice>("cancel");
 
   useInput((input, key) => {
+    input = latinKey(input);
     if (key.escape || input === "n") return onCancel();
     if (input === "y") return onConfirm();
     if (key.leftArrow || key.rightArrow || key.tab) {
