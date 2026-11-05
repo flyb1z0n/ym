@@ -2,6 +2,7 @@ import { Box, Text, useInput } from "ink";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { HighlightColor } from "../core/types.ts";
+import { DIR_KEYS, DIR_SUGGESTIONS, DirInput } from "./DirInput.tsx";
 import { LineInput } from "./LineInput.tsx";
 
 type Tone = "warning" | "danger";
@@ -158,20 +159,18 @@ export function DevDirDialog({ value, error, width, height, onChange, onSave, on
     if (key.escape) onCancel();
   });
 
-  const bounds = dialogBounds(width, height, 8);
+  const rows = 5 + DIR_SUGGESTIONS;
+  const bounds = dialogBounds(width, height, rows + 3);
   return (
-    <DialogFrame title="Dev directory" width={width} height={height} rows={5}>
+    <DialogFrame title="Dev directory" width={width} height={height} rows={rows}>
       <Text wrap="truncate">The folder that contains all your repositories.</Text>
       <Text dimColor wrap="truncate">
         Sessions start here; @tags point the agent at folders.
       </Text>
       <Text> </Text>
-      <Box>
-        <Text color="yellow">› </Text>
-        <LineInput value={value} width={Math.max(1, bounds.width - 6)} onChange={onChange} onSubmit={onSave} />
-      </Box>
+      <DirInput value={value} width={Math.max(1, bounds.width - 4)} color="yellow" onChange={onChange} onSubmit={onSave} />
       <Text color={error ? "red" : undefined} dimColor={!error} wrap="truncate">
-        {error ?? "Enter saves · Esc cancels"}
+        {error ?? DIR_KEYS}
       </Text>
     </DialogFrame>
   );

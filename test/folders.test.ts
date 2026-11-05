@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildFolderIndex,
+  completeDir,
   contextPrompt,
   parsePrompt,
   rootFolders,
@@ -65,6 +66,14 @@ describe("folders", () => {
     expect(suggestFolders("private", index)).toEqual([p("private/ym")]);
     expect(suggestFolders(`${root}/pri`, index)).toEqual([p("private")]);
     expect(suggestFolders(`${root}/private/`, index)).toEqual([p("private/notes"), p("private/ym")]);
+  });
+
+  test("completeDir lists a path's subfolders or the siblings it starts, showing hidden ones only for a dot", () => {
+    expect(completeDir(`${root}/`)).toEqual([p("common-api"), p("front-end"), p("private"), p("repo")]);
+    expect(completeDir(`${root}/PR`)).toEqual([p("private")]);
+    expect(completeDir(`${root}/.`)).toEqual([p(".hidden")]);
+    expect(completeDir(`${root}/`, 2)).toEqual([p("common-api"), p("front-end")]);
+    expect(completeDir(`${root}/nope/`)).toEqual([]);
   });
 
   test("parsePrompt pulls folders out of the prompt text", () => {
