@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import { useState } from "react";
 import { AGENT_NAMES, AGENTS, nextAgent } from "../core/agents.ts";
+import { latinKey } from "../core/layouts.ts";
 import { namingModel } from "../core/naming.ts";
 import { toggleAgent, type Settings } from "../core/settings.ts";
 import type { Agent } from "../core/types.ts";
@@ -102,7 +103,7 @@ export function SettingsView({ settings, width, height, onChange, onEditDevDir, 
 
   useInput(
     (input, key) => {
-      if (key.escape || (key.ctrl && input === "s")) return onClose();
+      if (key.escape || (key.ctrl && latinKey(input) === "s")) return onClose();
       if (key.upArrow) return setSelected((i) => Math.max(0, i - 1));
       if (key.downArrow) return setSelected((i) => Math.min(ROWS.length - 1, i + 1));
       if (!key.return && input !== " ") return;

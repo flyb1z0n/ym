@@ -37,6 +37,7 @@ import {
 } from "../core/folders.ts";
 import { attachPastedImages } from "../core/images.ts";
 import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts";
+import { latinKey } from "../core/layouts.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
 import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
@@ -301,6 +302,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return setDismissed(text);
       }
       if (!key.ctrl) return;
+      input = latinKey(input);
       // Terminals send Ctrl-/ as Ctrl-_.
       if (input === "_") return setShowAllKeys((v) => !v);
       if (input === "c") {

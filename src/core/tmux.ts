@@ -1,3 +1,4 @@
+import { layoutVariants } from "./layouts.ts";
 import type { PaneInfo } from "./types.ts";
 
 export const SOCKET = () => process.env.YM_TMUX_SOCKET ?? "ym";
@@ -109,7 +110,11 @@ const EXTKEYS_FEATURE = "*:extkeys";
 
 export function configureServer(): void {
   // An escaped "\;" keeps both commands inside the binding; a bare ";" would end bind-key.
-  must(["bind-key", "-n", DASH_KEY(), "select-window", "-t", DASH, "\\;", "select-pane", "-t", UI_PANE]);
+  const backToList = ["select-window", "-t", DASH, "\\;", "select-pane", "-t", UI_PANE];
+  must(["bind-key", "-n", DASH_KEY(), ...backToList]);
+  // Extended keys arrive as the layout's character, so C-g on a Russian layout is C-п; older tmux can't bind those.
+  const letter = /^C-([a-z])$/.exec(DASH_KEY())?.[1];
+  for (const char of letter ? layoutVariants(letter) : []) tmux(["bind-key", "-n", `C-${char}`, ...backToList]);
   // Global options are safe here: the ym socket is a private tmux server.
   must(["set-option", "-g", "status-right", ` ${keyLabel(DASH_KEY())}: back to list `]);
   must(["set-option", "-g", "status-left", " ym "]);

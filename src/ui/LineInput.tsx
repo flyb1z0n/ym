@@ -1,5 +1,6 @@
 import { Box, Text, useInput, usePaste } from "ink";
 import { useEffect, useRef, useState } from "react";
+import { latinKey } from "../core/layouts.ts";
 import { wrapStarts, type Highlight } from "./promptText.ts";
 
 interface Props {
@@ -54,19 +55,20 @@ export function LineInput({
 
   useInput(
     (input, key) => {
+      const ctrl = key.ctrl ? latinKey(input) : undefined;
       if (key.upArrow || key.downArrow || key.tab || key.escape) return;
       if (key.return) return multiline && (key.shift || key.meta) ? insert("\n") : onSubmit?.(value);
       if (key.leftArrow) return setCursor(Math.max(0, cursor - 1));
       if (key.rightArrow) return setCursor(Math.min(value.length, cursor + 1));
       if (key.home) return setCursor(0);
-      if (key.end || (key.ctrl && input === "e")) return setCursor(value.length);
+      if (key.end || ctrl === "e") return setCursor(value.length);
       if (key.backspace || key.delete) {
         if (cursor === 0) return;
         return edit(value.slice(0, cursor - 1) + value.slice(cursor), cursor - 1);
       }
-      if (key.ctrl && input === "u") return edit(value.slice(cursor), 0);
-      if (key.ctrl && input === "k") return edit(value.slice(0, cursor), cursor);
-      if (key.ctrl && input === "w") {
+      if (ctrl === "u") return edit(value.slice(cursor), 0);
+      if (ctrl === "k") return edit(value.slice(0, cursor), cursor);
+      if (ctrl === "w") {
         const start = value.slice(0, cursor).replace(/\S+\s*$/, "").length;
         return edit(value.slice(0, start) + value.slice(cursor), start);
       }
