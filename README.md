@@ -11,7 +11,7 @@ It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus o
 - Jump into a running session pane instantly, then return to the dashboard.
 - Launch prompts from the dashboard in your dev directory, with `@folder` tags pointing the agent at repos; `Shift-Tab` picks the agent.
 - Import past Cursor chats and Codex sessions and resume them.
-- Every new prompt asks the agent to make repo changes in a worktree it creates under `~/.ym/worktrees/<repo>/<branch>`, so your checkouts stay untouched.
+- Every new prompt asks the agent to make repo changes in a worktree it creates under `~/.ym/worktrees/<repo>/<branch>`, so your checkouts stay untouched, and to read and follow that repo's `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/` and skills first, since the agent runs from the dev directory and doesn't load them itself.
 
 ## Requirements
 

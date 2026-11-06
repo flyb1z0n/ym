@@ -113,6 +113,8 @@ describe("folders", () => {
       const sent = worktreePrompt("fix login");
       expect(sent.startsWith("fix login\n\nWorktrees: if this task needs changes in a git repository")).toBe(true);
       expect(sent).toContain("git -C <repository> worktree add -b <branch> /ym-home/worktrees/<repo>/<branch>");
+      expect(sent).toContain("\n\nRepository rules: you run outside the repositories");
+      expect(sent).toContain("AGENTS.md, CLAUDE.md, .cursor/rules/, .cursor/skills/ and .claude/skills/");
       expect(worktreePrompt("")).toBe("");
     } finally {
       delete process.env.YM_HOME;
