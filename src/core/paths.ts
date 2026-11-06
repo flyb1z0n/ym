@@ -13,6 +13,9 @@ export const installedHooksFile = () => join(ymHome(), "installed-hooks.json");
  */
 export const hookShimFile = () => join(ymHome(), "bin", "ym-hook");
 export const settingsFile = () => join(ymHome(), "config.json");
+/** Release binaries downloaded but not yet installed. */
+export const updatesDir = () => join(ymHome(), "updates");
+export const updateLogFile = () => join(ymHome(), "update.log");
 
 /** Where agents are told to create worktrees (and where older Codex sessions have theirs). */
 export const ymWorktreesDir = () => join(ymHome(), "worktrees");

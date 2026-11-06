@@ -40,7 +40,18 @@ import { cursorFirstPrompt, scanAllChats, type Chat } from "../core/importer.ts"
 import { latinKey } from "../core/layouts.ts";
 import { loadSettings, saveSettings } from "../core/settings.ts";
 import { isAlive, isStarting } from "../core/status.ts";
-import { DASH_KEY, detachClient, focusRight, keyLabel, listAgentPanes, show, unshow } from "../core/tmux.ts";
+import { selfCommand } from "../core/self.ts";
+import {
+  DASH_KEY,
+  detachClient,
+  focusRight,
+  keyLabel,
+  listAgentPanes,
+  respawnDashboard,
+  show,
+  unshow,
+} from "../core/tmux.ts";
+import { installUpdate } from "../core/update.ts";
 import { Header, HEADER_HEIGHT } from "./Header.tsx";
 import { folder, tildify } from "./format.ts";
 import { ConfirmDialog, DevDirDialog, HighlightDialog, RenameDialog } from "./Dialog.tsx";
@@ -50,6 +61,7 @@ import { inputLineCount, promptHighlights, repeatInput } from "./promptText.ts";
 import { SessionList } from "./SessionList.tsx";
 import { SettingsView } from "./SettingsView.tsx";
 import { useDashboard } from "./useDashboard.ts";
+import { useUpdate } from "./useUpdate.ts";
 
 type ConfirmAction = "stop" | "archive" | "unarchive" | "delete";
 
@@ -91,6 +103,7 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
   const { exit } = useApp();
   const { columns, rows: termRows } = useWindowSize();
   const { rows, panes, remote, refresh } = useDashboard();
+  const update = useUpdate();
   const [tab, setTab] = useState<TabId>("sessions");
   const [group, setGroup] = useState<GroupMode>("status");
   const [selectedId, setSelectedId] = useState<string>();
@@ -318,6 +331,12 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
         return setMode({ kind: "import", chats: scanAllChats().filter((c) => !tracked.has(c.chatId)) });
       }
       if (input === "s") return setMode({ kind: "settings" });
+      if (input === "y" && update) {
+        return attempt(() => {
+          installUpdate(update);
+          respawnDashboard([...selfCommand(), "dash"], settings.devDir ?? process.cwd());
+        });
+      }
       if (input === "t") {
         const i = GROUP_MODES.findIndex((m) => m.id === group);
         return setGroup(GROUP_MODES[(i + 1) % GROUP_MODES.length]!.id);
@@ -388,9 +407,12 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
 
   const showFailure = !errors.length && !suggestions.length && !!failure;
   const showCodexHint = !errors.length && !suggestions.length && !failure && !text && codexSilent;
-  const where = settings.devDir
-    ? `in ${tildify(settings.devDir)}${parsed.folders.length ? ` · context: ${parsed.folders.map(folder).join(", ")}` : ""}`
-    : "Set your dev directory in Ctrl-S settings to start sessions.";
+  const showUpdate = !errors.length && !suggestions.length && !failure && !text && !showCodexHint && !!update;
+  const where = showUpdate
+    ? `↑ ym ${update.version} ready · ^Y to update`
+    : settings.devDir
+      ? `in ${tildify(settings.devDir)}${parsed.folders.length ? ` · context: ${parsed.folders.map(folder).join(", ")}` : ""}`
+      : "Set your dev directory in Ctrl-S settings to start sessions.";
   const target = errors.length
     ? errors.join(", ")
     : suggestions.length
@@ -529,7 +551,11 @@ export function App({ hooksInstalled, codexHooksInstalled }: { hooksInstalled: b
           onSubmit={submit}
         />
       </Box>
-      <Text color={targetIsError ? "red" : undefined} dimColor={modalOpen || !targetIsError} wrap="truncate">
+      <Text
+        color={targetIsError ? "red" : showUpdate ? "yellow" : undefined}
+        dimColor={modalOpen || (!targetIsError && !showUpdate)}
+        wrap="truncate"
+      >
         {target}
       </Text>
       <Text dimColor={modalOpen || undefined}>{keys}</Text>

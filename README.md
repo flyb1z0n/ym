@@ -22,6 +22,22 @@ It uses a dedicated tmux server (`tmux -L ym`) to keep one dashboard pane plus o
 
 ## Install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/flyb1z0n/ym/main/install.sh | sh
+```
+
+This downloads the latest release for your machine (macOS or Linux, arm64 or x64) to `~/.local/bin/ym` (or `YM_BIN_DIR` if set), checks it against the release's checksums, and runs `ym install` to register the status hooks. Bun isn't needed for a release install.
+
+### Updates
+
+Every merge to `main` publishes a release. The dashboard checks for one shortly after it starts and then every 6 hours, downloads it in the background, and shows `↑ ym <version> ready · ^Y to update` under the prompt. `Ctrl-y` swaps the binary in and restarts the dashboard; agent sessions keep running, and their hooks use the new binary from then on. `ym update` does the same from the shell, and `ym --version` shows what you run.
+
+- Only release binaries update themselves. A source install (`bun run setup`) reports `dev` and stays on what you built.
+- Set `YM_NO_UPDATE=1` to turn updates off. They're also off when the folder holding `ym` isn't writable.
+- Download failures are logged to `~/.ym/update.log`.
+
+### From source
+
 From the repo root:
 
 ```bash
@@ -51,6 +67,8 @@ CLI commands:
 - `ym install` - register hooks (Cursor and Codex)
 - `ym uninstall` - remove hooks (Cursor and Codex)
 - `ym ssh [ssh options] <host>` - open `ym` on a remote machine (see below); plain `ym ssh` picks a saved host
+- `ym update` - install the latest release now
+- `ym --version` - print the version (`dev` for source builds)
 - `ym help` - show help
 
 ## Over SSH
@@ -105,6 +123,8 @@ bun test
 - `src/ui/*` - Ink TUI components and dashboard runtime
 - `test/*` - unit and integration tests
 - `scripts/setup.sh` - local install helper
+- `install.sh` - release installer; `.github/workflows/release.yml` builds and publishes a release on every merge to `main`, versioned `<major>.<minor>` from `package.json` plus the commit count
+- `src/core/update.ts` - self-update: release check, checksum-verified download, and binary swap
 
 ## Name
 

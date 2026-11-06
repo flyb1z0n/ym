@@ -1,0 +1,57 @@
+name: Release
+
+# Every merge to main ships a release; installed ym binaries pick it up from releases/latest.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # macOS so the darwin binaries can be signed; Linux binaries cross-compile here too.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install tmux
+        run: brew install tmux
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+
+      - name: Pick the version
+        id: version
+        # The main-branch commit count only grows, so versions sort in release order.
+        run: echo "version=$(jq -r .version package.json | cut -d. -f1,2).$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          YM_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            bun scripts/build.ts src/cli.tsx "release/ym-$target" "bun-$target"
+          done
+          codesign --force --sign - release/ym-darwin-*
+          cd release
+          shasum -a 256 ym-* > checksums.txt
+          echo "$YM_VERSION" > version
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "v$VERSION" release/* --title "ym $VERSION" --generate-notes --target "$GITHUB_SHA" --latest

@@ -15,7 +15,7 @@ import {
   uninstallCodex,
 } from "./core/install.ts";
 import { hookShimFile } from "./core/paths.ts";
-import { buildId, selfCommand } from "./core/self.ts";
+import { buildId, selfCommand, VERSION } from "./core/self.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { ensureDirs } from "./core/store.ts";
 import * as tmux from "./core/tmux.ts";
@@ -28,6 +28,8 @@ Usage:
   ym uninstall    remove ym's hooks from both
   ym ssh [ssh options] <host>  open ym on <host> over ssh; images dropped on this terminal are uploaded
   ym ssh          pick a host you connected to before
+  ym update       install the latest release now (the dashboard also offers it, on Ctrl-Y)
+  ym --version    print the version
   ym hook <event> [codex]  internal: called by agent hooks
   ym dash         internal: run the dashboard UI in the current terminal
 
@@ -140,6 +142,32 @@ switch (command) {
     }
     break;
   }
+  case "update": {
+    const { checkForUpdate, installUpdate, updateBlocker } = await import("./core/update.ts");
+    const blocker = updateBlocker();
+    if (blocker) fail(`can't update itself: ${blocker}.`);
+    try {
+      const update = await checkForUpdate();
+      if (!update) {
+        console.log(`ym ${VERSION} is the latest release.`);
+        break;
+      }
+      installUpdate(update);
+      console.log(`Updated ym ${VERSION} → ${update.version}.`);
+      if (tmux.serverRunning()) {
+        tmux.ensureDashWindow([...selfCommand(), "dash"], loadSettings().devDir ?? homedir(), buildId());
+        console.log("Restarted the dashboard.");
+      }
+    } catch (e) {
+      fail((e as Error).message);
+    }
+    break;
+  }
+  case "version":
+  case "-v":
+  case "--version":
+    console.log(VERSION);
+    break;
   case "uninstall": {
     // Codex first: the Cursor uninstall forgets the list of commands ym installed.
     const codex = uninstallCodex();
