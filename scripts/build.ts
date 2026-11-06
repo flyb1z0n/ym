@@ -18,11 +18,15 @@ const stubDevtools: BunPlugin = {
 
 const entry = process.argv[2] ?? "src/cli.tsx";
 const outfile = process.argv[3] ?? "dist/ym";
+const target = process.argv[4] as Bun.Build.CompileTarget | undefined;
+// Only release builds carry a version; "dev" builds never update themselves.
+const version = process.env.YM_VERSION || "dev";
 
 const result = await Bun.build({
   entrypoints: [entry],
-  compile: { outfile },
+  compile: { outfile, ...(target ? { target } : {}) },
   plugins: [stubDevtools],
+  define: { "process.env.YM_VERSION": JSON.stringify(version) },
   minify: true,
 });
 
@@ -30,4 +34,4 @@ if (!result.success) {
   for (const log of result.logs) console.error(log);
   process.exit(1);
 }
-console.log(`built ${outfile}`);
+console.log(`built ${outfile} (${version}${target ? `, ${target}` : ""})`);

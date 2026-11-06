@@ -159,6 +159,10 @@ export function remoteHost(): string | undefined {
 export const runningBuild = () => tmux(["show-option", "-gqv", "@ym_build"]).stdout.trim();
 export const recordBuild = (id: string) => void tmux(["set-option", "-g", "@ym_build", id]);
 
+/** Restarts the dashboard UI in its pane; agent panes keep running. */
+export const respawnDashboard = (dashCommand: string[], cwd: string) =>
+  void must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...DASH_ENV, ...dashCommand]);
+
 /** Starts the dashboard UI if it's missing, dead, or running an older build. */
 export function ensureDashWindow(dashCommand: string[], cwd: string, build: string): void {
   const windows = tmux(["list-windows", "-t", `=${SESSION}`, "-F", "#{window_name}"]).stdout.split("\n");
@@ -166,9 +170,7 @@ export function ensureDashWindow(dashCommand: string[], cwd: string, build: stri
     must(["new-window", "-d", "-t", `${SESSION}:`, "-n", DASH_WINDOW, "-c", cwd, ...DASH_ENV, ...dashCommand]);
   } else {
     const dead = tmux(["display-message", "-p", "-t", UI_PANE, "#{pane_dead}"]).stdout.trim() === "1";
-    if (dead || runningBuild() !== build) {
-      must(["respawn-pane", "-k", "-t", UI_PANE, "-c", cwd, ...DASH_ENV, ...dashCommand]);
-    }
+    if (dead || runningBuild() !== build) respawnDashboard(dashCommand, cwd);
   }
   adoptLegacyPanes();
   ensureDashLayout(cwd);

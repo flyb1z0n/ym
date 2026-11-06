@@ -1,6 +1,9 @@
 import { statSync } from "node:fs";
 
-const isCompiled = () => Bun.main.startsWith("/$bunfs/") || Bun.main.startsWith("B:/~BUN/");
+export const isCompiled = () => Bun.main.startsWith("/$bunfs/") || Bun.main.startsWith("B:/~BUN/");
+
+/** The release this binary was built as, or "dev" for source runs and local builds. */
+export const VERSION = process.env.YM_VERSION || "dev";
 
 /** The argv prefix that re-invokes this ym build (compiled binary or `bun src/cli.tsx`). */
 export function selfCommand(): string[] {
