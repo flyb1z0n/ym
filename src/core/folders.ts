@@ -115,13 +115,21 @@ export function contextPrompt(prompt: string, folders: string[]): string {
   return `${prompt}\n\nContext: start by looking at these folders; they're most relevant to this task:\n${list}`.trim();
 }
 
-/** Tells the agent to keep repo changes out of the user's checkouts, in a worktree it creates. */
+/**
+ * Tells the agent to keep repo changes out of the user's checkouts, in a worktree it creates, and to
+ * follow each repo's own agent instructions, which it doesn't load because it runs from the dev directory.
+ */
 export function worktreePrompt(prompt: string): string {
   if (!prompt) return prompt;
   const path = `${ymWorktreesDir()}/<repo>/<branch>`;
   return (
     `${prompt}\n\nWorktrees: if this task needs changes in a git repository, don't edit its checkout. ` +
     `First create a worktree on a new branch at ${path} ` +
-    `(\`git -C <repository> worktree add -b <branch> ${path}\`) and make the changes there.`
+    `(\`git -C <repository> worktree add -b <branch> ${path}\`) and make the changes there.` +
+    `\n\nRepository rules: you run outside the repositories, so their own rules and skills aren't loaded. ` +
+    `Before changing a repository, read whichever of its AGENTS.md, CLAUDE.md, .cursor/rules/, ` +
+    `.cursor/skills/ and .claude/skills/ exist, and follow them for the rest of the task, ` +
+    `including steps they require before committing, pushing or opening a PR. ` +
+    `Do this again for every other repository you change.`
   );
 }
