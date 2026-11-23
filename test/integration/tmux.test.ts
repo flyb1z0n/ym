@@ -55,7 +55,8 @@ const dashPanes = () =>
 
 beforeAll(() => {
   saveSettings(SETTINGS);
-  tmux.startServer(["sleep", "600"], dir);
+  // Like the real dashboard, ask for extended keys the moment the pane starts.
+  tmux.startServer(["sh", "-c", "printf '\\033[>4;1m'; exec sleep 600"], dir);
 });
 afterAll(() => {
   tmux.tmux(["kill-server"]);
@@ -67,6 +68,14 @@ describe("tmux integration with a stub agent", () => {
   test("dashboard window has the UI pane and a placeholder", () => {
     expect(dashPanes()).toHaveLength(2);
     expect(tmux.listAgentPanes().size).toBe(0);
+  });
+
+  test("a dashboard started with a fresh server gets the extended keys it asks for", async () => {
+    if (!tmux.csiUKeys()) return; // tmux < 3.5
+    const keyMode = () => tmux.tmux(["display-message", "-p", "-t", "ym:=dash.0", "#{pane_key_mode}"]).stdout.trim();
+    const end = Date.now() + 2000;
+    while (keyMode() !== "Ext 1" && Date.now() < end) await Bun.sleep(50);
+    expect(keyMode()).toBe("Ext 1");
   });
 
   test("inactive panes are dimmed", () => {
@@ -117,7 +126,6 @@ describe("tmux integration with a stub agent", () => {
     const features = tmux.tmux(["show-options", "-s", "terminal-features"]).stdout;
     expect(features.split("*:extkeys")).toHaveLength(2);
   });
-
   test("launch, show in dashboard, reply, exit, resume in place, stop", async () => {
     const s = await actions.startSession({ prompt: "do the thing", folders: [plain] });
     expect(s).toMatchObject({ cwd: dir, addDirs: [plain] });

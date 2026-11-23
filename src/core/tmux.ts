@@ -100,8 +100,10 @@ export function listAgentPanes(): Map<string, PaneInfo> {
 
 /** Creates the ym server with the dashboard UI in the left pane of its first window. */
 export function startServer(dashCommand: string[], cwd: string): void {
-  must(["new-session", "-d", "-s", SESSION, "-n", DASH_WINDOW, "-c", cwd, ...DASH_ENV, ...dashCommand]);
+  // tmux ignores a pane's request for extended keys until they're turned on, and the dashboard asks only at startup.
+  must(["new-session", "-d", "-s", SESSION, "-n", DASH_WINDOW, "-c", cwd, "tail", "-f", "/dev/null"]);
   configureServer();
+  respawnDashboard(dashCommand, cwd);
   ensureDashLayout(cwd);
 }
 
